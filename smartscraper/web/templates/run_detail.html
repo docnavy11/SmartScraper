@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}
+  <form class="inline-form" method="post" action="/runs/{{ run.id }}/rerun">
+    {{ ui.btn('Re-run', 'ghost', 'refresh', type='submit') }}
+  </form>
+  {{ ui.btn('Records', 'ghost', 'db', '/records?run_id=%d&scraper_id=%d'|format(run.id, scraper.id)) }}
+  {{ ui.btn('Scraper', 'ghost', 'chev', '/scrapers/%d'|format(scraper.id)) }}
+{% endblock %}
+
+{% block content %}
+<div class="pad">
+
+  {%- set report = run.validator_report or {} %}
+  {%- set rules = report.get('rules') or [] %}
+  {%- set failures = rules | rejectattr('passed') | list %}
+
+  {% if run.status == 'validation_failed' %}
+    {% call ui.banner('drift', 'This run did not pass its own validation, so delivery was held. The rows below are what the script produced, not what a consumer received.') %}
+      {{ ui.smallbtn('Repairs', 'accent', '/repairs') }}
+    {% endcall %}
+  {% elif run.status == 'blocked' %}
+    {% call ui.banner('fail', 'The site blocked this run at escalation %d · %s.'|format(run.escalation_level, run.block_reason or 'reason unknown')) %}
+      {{ ui.smallbtn('Coverage', 'accent', '/coverage') }}
+    {% endcall %}
+  {% endif %}
+
+  <div class="tiles">
+    {%- set tone = 'ok' if run.status == 'passed'
+                   else ('warn' if run.status == 'validation_failed'
+                   else ('text-3' if run.status in ('queued', 'cancelled') else 'fail')) %}
+    {{ ui.tile('status', RUN_STATUS_WORD.get(run.status, run.status), run.trigger, tone, ic='check') }}
+    {{ ui.tile('rows', run.row_count|num, '%d rules checked'|format(rules|length), ic='file') }}
+    {{ ui.tile('duration', run.duration_ms|dur, 'engine %s'|format(run.engine_used or 'unknown'), ic='clock') }}
+    {{ ui.tile('escalation', run.escalation_level, run.proxy_used or 'direct',
+               'warn' if run.escalation_level > 1 else 'text', ic='shield') }}
+    {{ ui.tile('agent cost', run.cost_usd|money, 'fallback and repair', 'agent' if run.cost_usd else 'text-3', ic='zap') }}
+  </div>
+
+  <div class="row stack-lg fill">
+
+    {% call ui.panel(grow=true, cls='fill') %}
+      {% call ui.phead('Log', '%d lines'|format(log|length)) %}
+        {%- set warns = log | selectattr('cls', 'equalto', 'warn') | list | length %}
+        {%- set errs = log | selectattr('cls', 'equalto', 'err') | list | length %}
+        {{ ui.chip('warn %d'|format(warns), 'warn') }}
+        {{ ui.chip('error %d'|format(errs), 'fail') }}
+      {% endcall %}
+      {% if log %}
+      <div class="logbox">
+        {%- for rec in log %}{{ ui.logline(rec) }}{% endfor %}
+      </div>
+      {% else %}
+      <div class="pbody">
+        <p class="field-hint">No log file for this run.
+          {% if not run.log_path %}The run has no log_path recorded.{% else %}{{ run.log_path }} is missing.{% endif %}</p>
+      </div>
+      {% endif %}
+    {% endcall %}
+
+    <div class="side col">
+      {% call ui.panel() %}
+        {% call ui.phead('Validation', 'v%d rules'|format(run.script_version)) %}
+          {{ ui.chip('%d failed'|format(failures|length), 'fail' if failures else 'ok') }}
+        {% endcall %}
+        <div class="pbody">
+          {%- if rules %}
+            {%- for r in rules %}
+            <div class="listrow">
+              {{ ui.dot('ok' if r.get('passed') else 'fail') }}
+              <span class="grow">{{ r.get('rule') }}</span>
+              <span class="mono {{ 't-text' if r.get('passed') else 't-fail' }}">{{ r.get('measured') }}</span>
+              <span class="mono t-text-3" style="width:74px;text-align:right">{{ r.get('expected') }}</span>
+            </div>
+            {%- endfor %}
+          {%- else %}
+            <p class="field-hint">No validator report was stored for this run.</p>
+          {%- endif %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel() %}
+        {{ ui.phead('Field metrics', '%d fields'|format(metrics|length)) }}
+        <div class="pbody">
+          {%- if metrics %}
+            {%- for m in metrics %}
+            {% call ui.kv(m.field) %}
+              <span class="{{ 't-fail' if m.null_rate > 0.05 else 't-ok' }}">{{ '%.2f'|format(m.null_rate) }}</span>
+              <span class="t-text-3">null · {{ m.distinct_count|num }} distinct</span>
+            {% endcall %}
+            {%- endfor %}
+          {%- else %}
+            <p class="field-hint">No per-field metrics were recorded.</p>
+          {%- endif %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel() %}
+        {{ ui.phead('Delivery', '%d targets'|format(deliveries|length)) }}
+        <div class="pbody">
+          {%- if deliveries %}
+            {%- for d in deliveries %}
+            {% call ui.kv('target %d'|format(d.target_id)) %}
+              {{ ui.status('ok' if d.status == 'sent' else 'fail', '%s · %d rows'|format(d.status, d.rows_sent)) }}
+            {% endcall %}
+            {%- endfor %}
+          {%- else %}
+            <p class="field-hint">Nothing was delivered for this run.</p>
+          {%- endif %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Artifacts', '%d files'|format(artifacts|length)) }}
+        <div class="pbody">
+          {%- if artifacts %}
+            {%- for a in artifacts %}
+            <div class="listrow">
+              {{ ui.icon('image' if a.suffix in ('png', 'jpg') else 'file', 12) }}
+              <span class="grow trunc">{{ a.name }}</span>
+              <span class="t-text-3">{{ (a.size / 1024)|round|int }} KB</span>
+            </div>
+            {%- endfor %}
+          {%- else %}
+            <p class="field-hint">No artifact directory for this run.</p>
+          {%- endif %}
+        </div>
+      {% endcall %}
+    </div>
+  </div>
+
+  {% call ui.panel() %}
+    {% call ui.phead('Records from this run', 'first %d'|format(records|length)) %}
+      {{ ui.btn('All records', 'ghost', 'db', '/records?run_id=%d&scraper_id=%d'|format(run.id, scraper.id), small=true) }}
+    {% endcall %}
+    {% if records %}
+      {%- set cols = [] %}
+      {%- for r in records %}{% for k in r.data or {} %}{% if k not in cols and cols|length < 6 %}{% set _ = cols.append(k) %}{% endif %}{% endfor %}{% endfor %}
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th style="width:90px">Source</th>{% for c in cols %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+          <tbody>
+          {%- for r in records %}
+            <tr>
+              <td>{{ ui.chip('llm' if r.source != 'script' else 'script', 'agent' if r.source != 'script' else 'text-3') }}</td>
+              {%- for c in cols %}
+              {%- set v = (r.data or {}).get(c) %}
+              <td class="{{ 't-fail' if v is none else '' }}">{{ 'null' if v is none else v }}</td>
+              {%- endfor %}
+            </tr>
+          {%- endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="pbody"><p class="field-hint">This run stored no records.</p></div>
+    {% endif %}
+  {% endcall %}
+
+</div>
+{% endblock %}

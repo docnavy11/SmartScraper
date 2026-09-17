@@ -1,0 +1,39 @@
+{% import "_ui.html" as ui with context %}
+{% set open_count = attention | rejectattr('acked') | list | length %}
+{% set quiet_count = attention | selectattr('acked') | list | length %}
+<div id="attention" hx-get="/partials/attention" hx-trigger="every 30s" hx-swap="outerHTML">
+{% call ui.panel() %}
+  {% call ui.phead('Needs attention', '%d open · %d quiet'|format(open_count, quiet_count)) %}
+    {{ ui.btn('View all', 'ghost', href='/runs?status=validation_failed', small=true) }}
+  {% endcall %}
+  {% if attention %}
+  <div>
+    {%- for a in attention %}
+    <div class="attn-row{{ ' acked' if a.acked }}">
+      {{ ui.dot(a.kind) }}
+      <a class="attn-name" href="/scrapers/{{ a.scraper.id }}">{{ a.scraper.name }}</a>
+      <span class="attn-msg" title="{{ a.why }}">{{ a.why }}</span>
+      <span class="attn-acts">
+        {%- if a.acked %}
+          <span class="mono t-text-3" style="font-size:10px">
+            quiet until {{ a.acked_until|hhmm }}
+          </span>
+          {{ ui.post_small('/scrapers/%d/reopen'|format(a.scraper.id), 'Reopen') }}
+        {%- else %}
+          {{ ui.post_small('/scrapers/%d/acknowledge'|format(a.scraper.id), 'Ack', fields={'hours': 4}) }}
+          {{ ui.post_small('/scrapers/%d/acknowledge'|format(a.scraper.id), 'Mute 24h', fields={'hours': 24}) }}
+        {%- endif %}
+      </span>
+      {{ ui.iconbtn('chev', 'Open run #%d'|format(a.run.id), '/runs/%d'|format(a.run.id)) }}
+    </div>
+    {%- endfor %}
+  </div>
+  {% else %}
+  <div class="pbody">
+    <div class="listrow" style="border-bottom:0">
+      {{ ui.status('ok', 'Every scraper passed its last run') }}
+    </div>
+  </div>
+  {% endif %}
+{% endcall %}
+</div>

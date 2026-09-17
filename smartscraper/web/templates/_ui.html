@@ -1,0 +1,243 @@
+{#
+  _ui.html — the component set.
+
+  One macro per helper in design/build_screens.py, same signatures where
+  sensible. Nothing here carries inline style: the look lives in static/app.css.
+  Import with:  {% import "_ui.html" as ui with context %}
+#}
+
+{# ------------------------------------------------------------------ icon #}
+{% macro icon(name, size=14, cls='') -%}
+{%- if name and name in ICONS -%}
+<svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+     stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"
+     class="ico {{ cls }}" style="flex-shrink:0;display:block;"><path d="{{ ICONS[name] }}"></path></svg>
+{%- endif -%}
+{%- endmacro %}
+
+{# --------------------------------------------------------------- buttons #}
+{% macro btn(label, kind='ghost', ic=none, href=none, small=false, type='button', name=none, value=none, cls='', title=none, disabled=false) -%}
+{%- set klass = 'btn btn-' ~ kind ~ (' sm' if small else '') ~ (' ' ~ cls if cls else '') -%}
+{%- if href -%}
+  <a class="{{ klass }}" href="{{ href }}"{% if title %} title="{{ title }}"{% endif %}>{{ icon(ic, 13) }}{% if label %}<span>{{ label }}</span>{% endif %}</a>
+{%- else -%}
+  <button class="{{ klass }}" type="{{ type }}"{% if name %} name="{{ name }}"{% endif %}{% if value is not none %} value="{{ value }}"{% endif %}{% if title %} title="{{ title }}"{% endif %}{% if disabled %} disabled{% endif %}>{{ icon(ic, 13) }}{% if label %}<span>{{ label }}</span>{% endif %}</button>
+{%- endif -%}
+{%- endmacro %}
+
+{# Icon-only control. `label` is required and becomes the accessible name. #}
+{% macro iconbtn(ic, label, href=none, tone='', type='button', name=none, value=none, cls='') -%}
+{%- set klass = 'iconbtn ' ~ (('t-' ~ tone) if tone else '') ~ (' ' ~ cls if cls else '') -%}
+{%- if href -%}
+  <a class="{{ klass }}" href="{{ href }}" aria-label="{{ label }}" title="{{ label }}">{{ icon(ic, 14) }}</a>
+{%- else -%}
+  <button class="{{ klass }}" type="{{ type }}" aria-label="{{ label }}" title="{{ label }}"{% if name %} name="{{ name }}"{% endif %}{% if value is not none %} value="{{ value }}"{% endif %}>{{ icon(ic, 14) }}</button>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro smallbtn(label, tone='', href=none, type='button', name=none, value=none, title=none) -%}
+{%- set klass = 'smallbtn ' ~ (('t-' ~ tone) if tone else '') -%}
+{%- if href -%}
+  <a class="{{ klass }}" href="{{ href }}"{% if title %} title="{{ title }}"{% endif %}>{{ label }}</a>
+{%- else -%}
+  <button class="{{ klass }}" type="{{ type }}"{% if name %} name="{{ name }}"{% endif %}{% if value is not none %} value="{{ value }}"{% endif %}{% if title %} title="{{ title }}"{% endif %}>{{ label }}</button>
+{%- endif -%}
+{%- endmacro %}
+
+{# A one-button POST form. Keeps every mutation off GET. #}
+{% macro post(action, label, kind='ghost', ic=none, small=false, confirm=none, fields={}, cls='') -%}
+<form class="inline-form" method="post" action="{{ action }}"{% if confirm %} onsubmit="return confirm('{{ confirm }}')"{% endif %}>
+  {%- for k, v in fields.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor -%}
+  {{ btn(label, kind, ic, none, small, type='submit', cls=cls) }}
+</form>
+{%- endmacro %}
+
+{% macro post_small(action, label, tone='', confirm=none, fields={}) -%}
+<form class="inline-form" method="post" action="{{ action }}"{% if confirm %} onsubmit="return confirm('{{ confirm }}')"{% endif %}>
+  {%- for k, v in fields.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor -%}
+  {{ smallbtn(label, tone, type='submit') }}
+</form>
+{%- endmacro %}
+
+{# ------------------------------------------------------- chip / status #}
+{% macro chip(text, tone='text-2', sans=false) -%}
+<span class="chip t-{{ tone }}{{ ' sans' if sans }}">{{ text }}</span>
+{%- endmacro %}
+
+{% macro dot(kind) -%}
+{%- set st = STATUS.get(kind) or STATUS['queued'] -%}
+<span class="dot s-{{ st[1] }}" aria-hidden="true">{{ st[0] }}</span>
+{%- endmacro %}
+
+{# Glyph plus word. Pass label='' for the glyph alone; the word still reaches
+   assistive tech through the visually-hidden span. #}
+{% macro status(kind, label=none) -%}
+{%- set st = STATUS.get(kind) or STATUS['queued'] -%}
+{%- set word = st[2] if label is none else label -%}
+<span class="status s-{{ st[1] }}"><span class="glyph" aria-hidden="true">{{ st[0] }}</span>{% if word %}{{ word }}{% else %}<span class="vh">{{ st[2] }}</span>{% endif %}</span>
+{%- endmacro %}
+
+{% macro run_status(run_status_value, label=none) -%}
+{{ status(RUN_STATUS_KIND.get(run_status_value, 'queued'), RUN_STATUS_WORD.get(run_status_value, run_status_value) if label is none else label) }}
+{%- endmacro %}
+
+{# ------------------------------------------------------------- typography #}
+{% macro label(text) -%}<div class="lbl">{{ text }}</div>{%- endmacro %}
+
+{% macro mono(text, size=12, tone='text') -%}
+<span class="mono t-{{ tone }}" style="font-size:{{ size }}px">{{ text }}</span>
+{%- endmacro %}
+
+{# ------------------------------------------------------------------ panel #}
+{% macro panel(grow=false, cls='') -%}
+<div class="panel{{ ' grow' if grow }}{{ ' ' ~ cls if cls }}">{{ caller() }}</div>
+{%- endmacro %}
+
+{# Panel header. Anything in the call block becomes the right-hand cluster. #}
+{% macro phead(title, sub='', mono_title=false) -%}
+<div class="phead">
+  <span class="phead-title{{ ' mono-title' if mono_title }}">{{ title }}</span>
+  {%- if sub %}<span class="phead-sub">{{ sub }}</span>{% endif -%}
+  <span class="spacer"></span>
+  {%- if caller %}<span class="phead-right">{{ caller() }}</span>{% endif -%}
+</div>
+{%- endmacro %}
+
+{# ------------------------------------------------------------------ tile #}
+{% macro tile(lab, val, sub='', tone='text', ic=none) -%}
+<div class="tile">
+  <div class="tile-lab">{{ icon(ic, 12) }}<span>{{ lab }}</span></div>
+  <div class="tile-val t-{{ tone }}">{{ val }}</div>
+  <div class="tile-sub">{{ sub }}</div>
+</div>
+{%- endmacro %}
+
+{# -------------------------------------------------------------------- kv #}
+{% macro kv(k, v='') -%}
+<div class="kv"><span class="kv-k">{{ k }}</span><span class="kv-v">{% if caller %}{{ caller() }}{% else %}{{ v }}{% endif %}</span></div>
+{%- endmacro %}
+
+{# ----------------------------------------------------------------- table #}
+{# cols: list of (label, width, align). A blank label renders an empty th. #}
+{% macro thead(cols) -%}
+<thead><tr>
+{%- for c in cols -%}
+  <th class="{{ 'r' if c[2] == 'right' else ('c' if c[2] == 'center' else '') }}"{% if c[1] %} style="width:{{ c[1] }}"{% endif %}>
+  {%- if c[0] %}{{ c[0] }}{% else %}<span class="vh">actions</span>{% endif %}</th>
+{%- endfor -%}
+</tr></thead>
+{%- endmacro %}
+
+{# rows: list of lists of already-rendered cell HTML. #}
+{% macro table(cols, rows, zebra=false, fixed=true, cls='') -%}
+<div class="tbl-wrap">
+  <table class="tbl{{ ' fixed' if fixed }}{{ ' zebra' if zebra }}{{ ' ' ~ cls if cls }}">
+    {{ thead(cols) }}
+    <tbody>
+    {%- for r in rows %}
+      <tr>{% for cell in r %}<td class="{{ 'r' if cols[loop.index0][2] == 'right' else ('c' if cols[loop.index0][2] == 'center' else '') }}">{{ cell }}</td>{% endfor %}</tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+</div>
+{%- endmacro %}
+
+{# ---------------------------------------------------------------- banner #}
+{% macro banner(kind, text) -%}
+{%- set st = STATUS.get(kind) or STATUS['drift'] -%}
+<div class="banner k-{{ st[1] }}" role="status">
+  <span class="glyph s-{{ st[1] }}" aria-hidden="true">{{ st[0] }}</span>
+  <span class="banner-text">{{ text }}</span>
+  {%- if caller %}<span class="banner-acts">{{ caller() }}</span>{% endif -%}
+</div>
+{%- endmacro %}
+
+{# ----------------------------------------------------------------- forms #}
+{% macro cbox(name, value, checked=false, aria='') -%}
+<input class="cbox" type="checkbox" name="{{ name }}" value="{{ value }}"{{ ' checked' if checked }}{% if aria %} aria-label="{{ aria }}"{% endif %}>
+{%- endmacro %}
+
+{% macro field(lab, hint='', for_id='') -%}
+<div class="field">
+  <label{% if for_id %} for="{{ for_id }}"{% endif %}>{{ lab }}</label>
+  {{ caller() }}
+  {%- if hint %}<div class="field-hint">{{ hint }}</div>{% endif -%}
+</div>
+{%- endmacro %}
+
+{% macro inp(name, value='', ph='', id='', type='text', cls='') -%}
+<input class="input {{ cls }}" type="{{ type }}" name="{{ name }}"{% if id %} id="{{ id }}"{% endif %} value="{{ value }}" placeholder="{{ ph }}">
+{%- endmacro %}
+
+{% macro seg(name, options, active) -%}
+<div class="seg" role="group">
+  {%- for o in options %}
+  <label><input type="radio" name="{{ name }}" value="{{ o }}"{{ ' checked' if o == active }}><span class="seg-inner">{{ o }}</span></label>
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+{% macro toggle(on=true, lab='') -%}
+<span class="toggle{{ ' on' if on }}"><span class="track" aria-hidden="true"></span><span class="tlab">{{ lab }}{% if not lab %}{{ 'on' if on else 'off' }}{% endif %}</span></span>
+{%- endmacro %}
+
+{# ------------------------------------------------------------------ code #}
+{% macro code_block(lines, cls='') -%}
+<div class="code {{ cls }}">
+  {%- for ln in lines %}
+  <div class="code-line{{ ' mark' if ln.mark }}"><span class="code-ln">{{ ln.n }}</span><span class="code-src">{{ ln.html|safe }}</span></div>
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+{% macro diff_block(rows) -%}
+<div class="diff">
+  {%- for r in rows %}
+    {%- if r.kind == 'h' %}
+  <div class="diff-h">{{ r.html|safe }}</div>
+    {%- else %}
+  <div class="diff-line{{ ' del' if r.kind == '-' }}{{ ' add' if r.kind == '+' }}"><span class="diff-n">{{ r.old }}</span><span class="diff-n">{{ r.new }}</span><span class="diff-m" aria-hidden="true">{{ '−' if r.kind == '-' else ('+' if r.kind == '+' else ' ') }}</span><span class="diff-src">{{ r.html|safe }}</span></div>
+    {%- endif %}
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+{% macro logline(rec) -%}
+<div class="logline l-{{ rec.cls }}"><span class="ts">{{ rec.ts }}</span><span class="tag">{{ rec.tag }}</span><span class="msg">{{ rec.msg }}</span></div>
+{%- endmacro %}
+
+{# ------------------------------------------------------------ empty state #}
+{% macro empty(title, text='', ic='db') -%}
+<div class="empty">
+  <span class="empty-mark">{{ icon(ic, 19) }}</span>
+  <h2>{{ title }}</h2>
+  {%- if text %}<p>{{ text }}</p>{% endif -%}
+  {%- if caller %}<div class="empty-acts">{{ caller() }}</div>{% endif -%}
+</div>
+{%- endmacro %}
+
+{# --------------------------------------------------------------- misc bits #}
+{% macro bar(pct, tone='accent', lg=false) -%}
+<div class="bar{{ ' lg' if lg }}"><span class="t-{{ tone }}" style="width:{{ pct }}%;background:currentColor"></span></div>
+{%- endmacro %}
+
+{% macro step(kind, op, detail='', dur='', active=false) -%}
+{%- set st = STATUS.get(kind) or STATUS['queued'] -%}
+<div class="step{{ ' active' if active }}">
+  <span class="glyph s-{{ st[1] }}" aria-hidden="true">{{ st[0] }}</span>
+  <span class="vh">{{ st[2] }}</span>
+  <div class="step-body">
+    <span class="step-op">{{ op }}</span>
+    {%- if detail %}<span class="step-detail">{{ detail }}</span>{% endif -%}
+  </div>
+  {%- if dur %}<span class="step-dur">{{ dur }}</span>{% endif -%}
+</div>
+{%- endmacro %}
+
+{% macro swatch(name, hexv, note='') -%}
+<div class="swatch">
+  <span class="chip-color" style="background:{{ hexv }}"></span>
+  <span class="names"><span class="n">{{ name }}</span><span class="h">{{ hexv }}</span></span>
+  <span class="note">{{ note }}</span>
+</div>
+{%- endmacro %}

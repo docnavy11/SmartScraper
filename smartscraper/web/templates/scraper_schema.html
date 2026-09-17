@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}
+  {{ ui.btn('Open records', 'ghost', 'db', '/records?scraper_id=%d'|format(scraper.id)) }}
+  {{ ui.btn('Edit script', 'ghost', 'code', '/scrapers/%d/script'|format(scraper.id)) }}
+{% endblock %}
+
+{% block content %}
+<div class="pad">
+
+  {%- set broken = fields | selectattr('latest_null_rate', 'gt', 0.05) | list %}
+  {% if broken %}
+    {% call ui.banner('drift', '%s null on more than 5%% of rows in the newest run. A consumer reading this schema sees nulls, not an error.'|format(
+         broken | map(attribute='field') | join(', '))) %}
+      {{ ui.smallbtn('Repairs', 'accent', '/repairs') }}
+    {% endcall %}
+  {% endif %}
+
+  <div class="row stack-lg fill">
+    <div class="fill col">
+
+      {% call ui.panel() %}
+        {% call ui.phead('Fields', 'contract v%s · %d fields'|format(version.version if version else '?', fields|length)) %}
+          {{ ui.btn('Edit schema', 'ghost', 'code', '/scrapers/%d/script'|format(scraper.id), small=true) }}
+        {% endcall %}
+        {% if fields %}
+        <div class="tbl-wrap">
+          <table class="tbl fixed">
+            {{ ui.thead([('Field', '140px', 'left'), ('Null rate, latest', '120px', 'right'),
+                         ('Null rate, mean', '120px', 'right'), ('Distinct', '90px', 'right'),
+                         ('Runs seen', '90px', 'right'), ('Latest value', '260px', 'left'), ('', '60px', 'left')]) }}
+            <tbody>
+            {%- for f in fields %}
+              {%- set bad = f.latest_null_rate > 0.05 %}
+              <tr>
+                <td class="{{ 't-fail' if bad else '' }}">{{ f.field }}</td>
+                <td class="r {{ 't-fail' if bad else 't-ok' }}">{{ '%.2f'|format(f.latest_null_rate) }}</td>
+                <td class="r t-text-2">{{ '%.2f'|format(f.null_rate) }}</td>
+                <td class="r t-text-2">{{ f.distinct|num }}</td>
+                <td class="r t-text-3">{{ f.runs }}</td>
+                <td class="sy-str trunc">{{ f.sample or 'no sample' }}</td>
+                <td>{{ ui.status('fail' if bad else 'ok', '') }}</td>
+              </tr>
+            {%- endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+          {% call ui.empty('No field metrics yet', 'The validator records a null rate per field on every run. Run this scraper once to populate the contract.', 'file') %}
+            <form method="post" action="/scrapers/{{ scraper.id }}/run">{{ ui.btn('Run now', 'primary', 'play', type='submit') }}</form>
+          {% endcall %}
+        {% endif %}
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Null rate per field', 'one bar per recent run') }}
+        <div class="pbody">
+          {%- if fields %}
+            {%- for f in fields %}
+            <div class="col" style="gap:4px;padding:7px 0;border-bottom:1px solid var(--line)">
+              <div class="toolbar" style="gap:8px">
+                <span class="mono" style="font-size:11.5px;width:80px">{{ f.field }}</span>
+                <span class="field-hint">{{ 'clean' if f.null_rate < 0.01 else 'nulls in %d of %d runs seen'|format(
+                  f.series | select('gt', 0.0) | list | length, f.runs) }}</span>
+              </div>
+              <div class="spark" style="height:26px">
+                {%- for v in f.series %}
+                <i style="height:{{ [2, (v * 26)|round|int]|max }}px;background:var(--{{ 'fail' if v > 0.05 else ('warn' if v > 0 else 'line-2') }})"
+                   title="{{ '%.2f'|format(v) }} null"></i>
+                {%- endfor %}
+              </div>
+            </div>
+            {%- endfor %}
+          {%- else %}
+            <p class="field-hint">Nothing to plot yet.</p>
+          {%- endif %}
+        </div>
+      {% endcall %}
+
+    </div>
+
+    <div class="side col">
+      {% call ui.panel() %}
+        {{ ui.phead('Schema history', '%d versions'|format(versions|length)) }}
+        <div class="pbody">
+          {%- for v in versions[:8] %}
+          <div class="col" style="gap:2px;padding:8px 0;border-bottom:1px solid var(--line)">
+            <div class="toolbar" style="gap:7px">
+              <span class="mono {{ 't-agent' if v.created_by in ('builder', 'repair') else 't-text-3' }}"
+                    style="font-size:11px;font-weight:600">v{{ v.version }}</span>
+              {{ ui.chip(v.status, 'ok' if v.status == 'active' else 'text-3') }}
+            </div>
+            <span class="field-hint">{{ v.change_summary or 'no summary' }}</span>
+            <span class="ver-when">{{ v.created_at|ago }}</span>
+          </div>
+          {%- else %}
+          <p class="field-hint">No versions recorded.</p>
+          {%- endfor %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Freshness & consumers') }}
+        <div class="pbody">
+          {% call ui.kv('last clean run') %}
+            <span class="{{ 't-warn' if freshness.stale else 't-ok' }}">{{ freshness.last_clean_run_at|ago }}</span>
+          {% endcall %}
+          {{ ui.kv('last run', freshness.last_run_at|ago) }}
+          {% call ui.kv('stale') %}{{ ui.status('drift' if freshness.stale else 'ok',
+                                                'yes' if freshness.stale else 'no') }}{% endcall %}
+          {%- for t in targets %}
+          {% call ui.kv(t.kind) %}{{ ui.chip('reading', 'ok') }}{% endcall %}
+          {%- endfor %}
+          <p class="pnote-plain">
+            A consumer pinned to this contract keeps the same field names. Only a rename or a removal bumps it.
+            {% if freshness.reason %}<br>{{ freshness.reason }}{% endif %}
+          </p>
+        </div>
+      {% endcall %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

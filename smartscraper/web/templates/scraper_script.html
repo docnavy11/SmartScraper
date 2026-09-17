@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}
+  {{ ui.btn('Run now', 'ghost', 'play', '/scrapers/%d'|format(scraper.id)) }}
+  {{ ui.btn('Schema', 'ghost', 'file', '/scrapers/%d/schema'|format(scraper.id)) }}
+{% endblock %}
+
+{% block content %}
+<div class="pad">
+  <div class="row stack-lg fill">
+
+    <div style="width:212px;flex-shrink:0" class="col">
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Versions', '%d'|format(versions|length)) }}
+        {% if versions %}
+        <div class="pscroll">
+          {%- for v in versions %}
+          <a class="ver{{ ' on' if shown and v.id == shown.id }}"
+             href="/scrapers/{{ scraper.id }}/script?version={{ v.version }}">
+            <span class="ver-top">
+              <span class="ver-n">v{{ v.version }}</span>
+              {{ ui.chip(v.created_by, 'agent' if v.created_by in ('builder', 'repair') else 'text-2') }}
+              <span class="spacer"></span>
+              <span class="ver-when {{ 't-ok' if v.status == 'active' else ('t-warn' if v.status == 'candidate' else 't-text-3') }}">{{ v.status }}</span>
+            </span>
+            <span class="ver-note">{{ v.change_summary or 'no summary' }}</span>
+            <span class="ver-when">{{ v.created_at|ago }}</span>
+          </a>
+          {%- endfor %}
+        </div>
+        {% else %}
+        <div class="pbody"><p class="field-hint">No versions yet.</p></div>
+        {% endif %}
+      {% endcall %}
+    </div>
+
+    {% call ui.panel(grow=true, cls='fill') %}
+      <div class="phead">
+        <span class="phead-title mono-title">{{ scraper.yaml_path }}</span>
+        {%- if shown %}{{ ui.chip('v%d %s'|format(shown.version, shown.status),
+                                  'ok' if shown.status == 'active' else 'warn') }}{% endif %}
+        <span class="spacer"></span>
+        {%- if shown %}<span class="phead-sub">yaml · {{ shown.yaml.splitlines()|length }} lines</span>{% endif %}
+      </div>
+      {% if shown %}
+        {{ ui.code_block(shown.yaml|yaml_lines) }}
+      {% else %}
+        {% call ui.empty('No script yet', 'The builder writes the first version. Nothing runs until one exists.', 'code') %}
+          {{ ui.btn('New scraper', 'primary', 'plus', '/scrapers/new') }}
+        {% endcall %}
+      {% endif %}
+    {% endcall %}
+
+    <div class="side col">
+      {% call ui.panel() %}
+        {{ ui.phead('Probe', 'selector check') }}
+        <div class="pbody-lg">
+          <form class="col" style="gap:8px">
+            {% call ui.field('Selector', 'Runs against the live page in the same context as the runner, profile and proxy included.', 'probe-q') %}
+              {{ ui.inp('selector', '', 'css=.product-card', id='probe-q') }}
+            {% endcall %}
+            <div class="toolbar">
+              {{ ui.btn('Probe', 'solid', 'search', disabled=true, title='The probe needs the runner engine') }}
+              {{ ui.btn('Pick on page', 'ghost', 'eye', disabled=true, title='The probe needs the runner engine') }}
+            </div>
+          </form>
+          {% call ui.banner('drift', 'The probe is inert until smartscraper/runner exposes Engine.probe over HTTP. The pane is wired, the engine is not.') %}{% endcall %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Step reference', '18 ops') }}
+        <div class="pbody-lg">
+          <div class="seg" style="gap:5px">
+            {%- for op in ['goto', 'wait_for', 'click', 'fill', 'select', 'scroll', 'hover', 'press',
+                           'extract', 'extract_list', 'paginate', 'loop', 'emit', 'sleep', 'screenshot',
+                           'solve_challenge', 'assert', 'custom_python'] %}
+            {{ ui.chip(op, 'accent' if op in ('extract_list', 'paginate', 'emit', 'goto', 'wait_for') else 'text-3') }}
+            {%- endfor %}
+          </div>
+          <p class="field-hint">
+            {{ ui.icon('alert', 11) }} <span class="t-warn">custom_python</span> runs unsandboxed in the run
+            subprocess. Any version that adds or changes one needs human approval, whatever the promotion policy.
+          </p>
+        </div>
+      {% endcall %}
+    </div>
+  </div>
+</div>
+{% endblock %}

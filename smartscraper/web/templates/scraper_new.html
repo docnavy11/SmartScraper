@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}
+  {{ ui.btn('Cancel', 'ghost', href='/scrapers') }}
+{% endblock %}
+
+{% block content %}
+<form class="pad" method="post" action="/scrapers">
+
+  {% if error %}
+    {% call ui.banner('fail', error) %}
+      {{ ui.smallbtn('Back to scrapers', '', '/scrapers') }}
+    {% endcall %}
+  {% endif %}
+
+  <div class="row stack-lg fill">
+
+    {% call ui.panel(grow=true, cls='fill') %}
+      {{ ui.phead('What to scrape') }}
+      <div class="pbody-lg" style="gap:14px">
+        {% call ui.field('Target URL', 'The page the builder starts from. Pagination and detail pages are discovered by the agent.', 'f-url') %}
+          {{ ui.inp('url', '', 'https://shop.example.eu/pricing', id='f-url', type='url') }}
+        {% endcall %}
+        {% call ui.field('What should it extract?', 'Plain language. The builder turns this into an output schema and a step list.', 'f-goal') %}
+          <textarea class="input" id="f-goal" name="goal" rows="5"
+                    placeholder="Every product on the pricing pages: name, price, currency and a link to the detail page. Follow pagination to the end."></textarea>
+        {% endcall %}
+        {% call ui.field('Engine', 'Auto starts with plain http and escalates only when the page blocks or renders empty.') %}
+          {{ ui.seg('engine', ['Auto', 'http', 'patchright', 'camoufox'], 'Auto') }}
+        {% endcall %}
+        <div class="row">
+          {% call ui.field('Login profile', '', 'f-profile') %}{{ ui.inp('profile', '', 'none', id='f-profile') }}{% endcall %}
+          {% call ui.field('Proxy pool', '', 'f-proxy') %}{{ ui.inp('proxy', '', 'none', id='f-proxy') }}{% endcall %}
+        </div>
+      </div>
+    {% endcall %}
+
+    {% call ui.panel(grow=true, cls='fill') %}
+      {{ ui.phead('How it should run') }}
+      <div class="pbody-lg" style="gap:14px">
+        {% call ui.field('Schedule') %}
+          {{ ui.seg('schedule', ['Manual', 'Every 15 min', 'Hourly', 'Daily'], 'Hourly') }}
+        {% endcall %}
+        {% call ui.field('When a run fails validation') %}
+          {{ ui.seg('promotion', ['Repair, ask me', 'Repair, auto if minor', 'Repair, always auto', 'Just alert'],
+                    'Repair, ask me') }}
+        {% endcall %}
+        {% call ui.field('LLM fallback while a repair is pending',
+                         'Delivers flagged rows so downstream consumers keep receiving data.') %}
+          {{ ui.seg('fallback', ['On · sonnet-5', 'On · opus-5', 'Off'], 'On · sonnet-5') }}
+        {% endcall %}
+        {% call ui.field('Monthly agent budget', 'Builds and repairs stop when the budget is reached.', 'f-budget') %}
+          {{ ui.inp('budget', settings.default_scraper_budget, '', id='f-budget') }}
+        {% endcall %}
+      </div>
+    {% endcall %}
+
+    <div class="side col">
+      {% call ui.panel() %}
+        {{ ui.phead('What happens next') }}
+        <div class="pbody-lg">
+          <p class="field-hint">The builder opens the page in a real browser, probes selectors, writes a YAML
+             step list, then runs it once. You review the result before it is saved.</p>
+          {%- for step in ['Explore the page and capture a fixture',
+                           'Propose an output schema and step list',
+                           'Test-run the script against the live page',
+                           'Show you the rows before saving'] %}
+          <div class="toolbar" style="gap:8px;flex-wrap:nowrap">
+            <span class="mono t-text-3" style="width:17px;height:17px;flex-shrink:0;border:1px solid var(--line-2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9.5px">{{ loop.index }}</span>
+            <span class="field-hint">{{ step }}</span>
+          </div>
+          {%- endfor %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Legal & etiquette') }}
+        <div class="pbody">
+          {% call ui.kv('respect robots.txt') %}{{ ui.chip('on' if settings.respect_robots else 'off',
+                                                           'ok' if settings.respect_robots else 'warn') }}{% endcall %}
+          {% call ui.kv('min delay') %}{{ ui.chip('%s–%ss'|format(settings.min_delay_s, settings.max_delay_s), 'text-2') }}{% endcall %}
+          {% call ui.kv('run timeout') %}{{ ui.chip('%ss'|format(settings.run_timeout_s), 'text-2') }}{% endcall %}
+          <p class="pnote-plain">{{ ui.icon('alert', 11) }} Check the site's terms before scheduling.
+             Rate limits and robots are yours to set.</p>
+        </div>
+      {% endcall %}
+
+      <div class="toolbar">
+        {{ ui.btn('What the builder shows', 'ghost', 'eye', '/builder') }}
+        <span class="spacer"></span>
+        {{ ui.btn('Start builder', 'primary', 'zap', type='submit') }}
+      </div>
+    </div>
+  </div>
+
+</form>
+{% endblock %}

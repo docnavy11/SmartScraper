@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}
+  {{ ui.chip(endpoint, 'text-2') }}
+  {{ ui.btn('Back to delivery', 'ghost', 'chev', '/delivery') }}
+{% endblock %}
+
+{% block content %}
+<div class="pad">
+
+  {% if not mounted %}
+    {% call ui.banner('fail', 'The MCP server is not mounted on this process, so nothing is listening on %s.'|format(endpoint)) %}
+    {% endcall %}
+  {% elif not token_set %}
+    {% call ui.banner('drift', 'No bearer token is set, so the endpoint is unauthenticated and will only bind to loopback. Set SS_MCP_BEARER_TOKEN before serving on any other address.') %}
+      {{ ui.smallbtn('Settings', 'accent', '/settings') }}
+    {% endcall %}
+  {% endif %}
+
+  <div class="row stack-lg fill">
+
+    <div style="width:214px;flex-shrink:0" class="col">
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Inbound tools', '%d'|format(tools|length)) }}
+        {% if tools %}
+        <div class="pscroll">
+          {%- for t in tools %}
+          <a class="ver{{ ' on' if t.name == tool }}" href="/mcp-console?tool={{ t.name }}">
+            <span class="ver-top">
+              <span class="ver-n">{{ t.name }}</span>
+              <span class="spacer"></span>
+              {%- if t.destructive %}{{ ui.chip('write', 'fail') }}
+              {%- elif not t.read_only %}{{ ui.chip('write', 'warn') }}
+              {%- else %}{{ ui.chip('read', 'text-3') }}{% endif %}
+            </span>
+            <span class="ver-note">{{ t.summary }}</span>
+          </a>
+          {%- endfor %}
+        </div>
+        {% else %}
+          <div class="pbody"><p class="field-hint">The tool list could not be read from the server.</p></div>
+        {% endif %}
+      {% endcall %}
+    </div>
+
+    <div class="fill col">
+      {% call ui.panel() %}
+        <div class="phead">
+          <span class="phead-title mono-title">{{ tool }}</span>
+          {%- if chosen %}
+            {%- if chosen.destructive %}{{ ui.chip('destructive', 'fail') }}
+            {%- elif not chosen.read_only %}{{ ui.chip('writes', 'warn') }}
+            {%- else %}{{ ui.chip('read only', 'ok') }}{% endif %}
+          {%- endif %}
+          <span class="spacer"></span>
+          {{ ui.btn('Send', 'primary', 'send', small=true, disabled=true,
+                    title='Calling a tool from the browser is not wired up') }}
+        </div>
+        {%- if chosen and chosen.description %}
+        <div class="pnote" style="border-top:0;border-bottom:1px solid var(--line)">{{ chosen.description }}</div>
+        {%- endif %}
+        {{ ui.code_block(example|json_lines) }}
+        <div class="pnote">
+          {{ ui.chip('arguments', 'text-3') }}
+          This pane shows a plausible call. Sending one from the browser is not wired up, so nothing here
+          triggers a tool.
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {% call ui.phead('Response shape', 'read from the database, not from a live call') %}
+          {%- if response %}{{ ui.chip('stale: %s'|format(response.freshness.stale|lower),
+                                       'warn' if response.freshness.stale else 'ok') }}{% endif %}
+        {% endcall %}
+        {% if response %}
+          {{ ui.code_block(response|json_lines) }}
+        {% else %}
+          {% call ui.empty('Nothing to show for %s'|format(tool),
+                           'This pane mirrors what get_results and search_results would return. Other tools are not replayed here because a page view must not trigger a write.', 'term') %}
+            {{ ui.btn('get_results', 'primary', 'chev', '/mcp-console?tool=get_results') }}
+          {% endcall %}
+        {% endif %}
+      {% endcall %}
+    </div>
+
+    <div class="side col">
+      {% call ui.panel() %}
+        {{ ui.phead('Connect') }}
+        <div class="pbody-lg">
+          <div class="searchbox">
+            <span class="mono trunc grow" style="font-size:11px">{{ endpoint }}</span>
+          </div>
+          {% call ui.kv('transport') %}{{ ui.chip('streamable http', 'text-2') }}{% endcall %}
+          {% call ui.kv('auth') %}
+            {%- if token_set %}{{ ui.chip('bearer token set', 'ok') }}
+            {%- else %}{{ ui.chip('none · loopback only', 'warn') }}{% endif %}
+          {% endcall %}
+          {% call ui.kv('header') %}<span class="mono" style="font-size:10.5px">Authorization: Bearer &lt;token&gt;</span>{% endcall %}
+          {% call ui.kv('stdio') %}<span class="mono" style="font-size:10.5px">smartscraper mcp --stdio</span>{% endcall %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel() %}
+        {{ ui.phead('Resources', '%d templates'|format(templates|length)) }}
+        <div class="pbody">
+          {%- for r in templates %}
+          <div class="col" style="gap:3px;padding:7px 0;border-bottom:1px solid var(--line)">
+            <div class="toolbar" style="gap:7px">
+              <span class="mono t-accent grow trunc" style="font-size:11px">{{ r.uri }}</span>
+              {{ ui.chip(r.mime_type, 'text-3') }}
+            </div>
+            <span class="field-hint">{{ r.description }}</span>
+          </div>
+          {%- else %}
+          <p class="field-hint">No resource templates were reported by the server.</p>
+          {%- endfor %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Outbound mapping', '%d mcp targets'|format(targets|length)) }}
+        <div class="pbody">
+          {%- if targets %}
+            {%- for t in targets %}
+            {% call ui.kv('server') %}{{ ui.chip(t.config.get('server', 'unnamed'), 'text-2') }}{% endcall %}
+            {% call ui.kv('tool') %}{{ ui.chip(t.config.get('tool', '—'), 'accent') }}{% endcall %}
+            {% call ui.kv('format') %}{{ ui.chip(t.fmt, 'text-3') }}{% endcall %}
+            {%- endfor %}
+          {%- else %}
+            <p class="field-hint">No MCP delivery target is configured, so there is no field-to-argument mapping
+               to edit. Add an mcp target on the delivery screen first.</p>
+          {%- endif %}
+          <p class="pnote-plain">{{ ui.icon('send', 11) }} Outbound is the other direction: SmartScraper calling
+             someone else's MCP server to deliver rows. Inbound is the list on the left.</p>
+        </div>
+      {% endcall %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}
+  {{ ui.run_status(run.status) }}
+  {% if not finished %}
+  <form class="inline-form" method="post" action="/runs/{{ run.id }}/cancel">
+    {{ ui.btn('Cancel run', 'danger', 'stop', type='submit') }}
+  </form>
+  {% else %}
+  {{ ui.btn('Run summary', 'primary', 'chev', '/runs/%d'|format(run.id)) }}
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="pad">
+
+  <div class="row stack-lg fill">
+
+    {% call ui.panel(grow=true, cls='fill') %}
+      <div class="phead">
+        <span class="phead-title">Log</span>
+        {{ ui.chip('streaming · sse' if not finished else 'finished', 'accent' if not finished else 'text-3') }}
+        <span class="spacer"></span>
+        <button class="smallbtn" type="button" id="log-follow" aria-pressed="true"><span>Follow</span></button>
+      </div>
+
+      <div class="logbox" id="log-stream" data-follow="on"
+           hx-ext="sse" sse-connect="/runs/{{ run.id }}/log/stream"
+           sse-swap="line,done" hx-swap="beforeend"
+           role="log" aria-live="polite" aria-label="Live run log">
+        {%- for rec in log %}{{ ui.logline(rec) }}{% endfor %}
+        {%- if not log %}
+        <div class="logline l-info"><span class="ts"></span><span class="tag">runner</span><span class="msg">waiting for the first line…</span></div>
+        {%- endif %}
+      </div>
+    {% endcall %}
+
+    <div class="side col">
+      {% call ui.panel() %}
+        {{ ui.phead('Progress') }}
+        <div class="pbody">
+          {{ ui.kv('scraper', scraper.name) }}
+          {{ ui.kv('version', 'v%d'|format(run.script_version)) }}
+          {{ ui.kv('trigger', run.trigger) }}
+          {{ ui.kv('started', run.started_at|time if run.started_at else 'not started') }}
+          {{ ui.kv('elapsed', run.duration_ms|dur) }}
+          {{ ui.kv('rows so far', run.row_count|num) }}
+          {% call ui.kv('engine') %}{{ ui.chip(run.engine_used or 'pending', 'text-3') }}{% endcall %}
+          {% call ui.kv('escalation') %}{{ ui.chip('%d of 5'|format(run.escalation_level), 'text-3') }}{% endcall %}
+          {% call ui.kv('proxy') %}{{ ui.chip(run.proxy_used or 'direct', 'text-3') }}{% endcall %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('While it runs') }}
+        <div class="pbody-lg">
+          <p class="field-hint">
+            The log is tailed from <span class="mono">{{ run.log_path or 'the run log file' }}</span> and pushed
+            over server-sent events. One JSON object per line, so a partial write never breaks the stream.
+          </p>
+          <p class="field-hint">
+            The browser preview and the step timeline arrive with the runner. This screen shows what the
+            run itself reports today.
+          </p>
+          {{ ui.btn('Open scraper', 'ghost', 'db', '/scrapers/%d'|format(scraper.id), small=true) }}
+        </div>
+      {% endcall %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block content %}
+<div class="pad">
+
+  <form class="toolbar" method="get" action="/records">
+    <label class="vh" for="r-scraper">Scraper</label>
+    <select class="input" id="r-scraper" name="scraper_id" style="width:200px">
+      <option value="">All scrapers</option>
+      {%- for s in scrapers %}
+      <option value="{{ s.id }}"{{ ' selected' if scraper_id == s.id }}>{{ s.name }}</option>
+      {%- endfor %}
+    </select>
+    {%- if run_id %}<input type="hidden" name="run_id" value="{{ run_id }}">{% endif %}
+    {{ ui.btn('Apply', 'primary', 'search', type='submit') }}
+    {{ ui.btn('Clear', 'ghost', href='/records') }}
+    {%- set scope = '?' ~ (('scraper_id=' ~ scraper_id ~ '&') if scraper_id else '') %}
+    {{ ui.btn('All rows', 'solid' if include_fallback else 'ghost',
+              href='/records' ~ scope ~ 'include_fallback=true') }}
+    {{ ui.btn('Script rows only', 'ghost' if include_fallback else 'solid',
+              href='/records' ~ scope ~ 'include_fallback=false') }}
+    <span class="spacer"></span>
+    {%- if scraper %}{{ ui.btn('Schema', 'ghost', 'file', '/scrapers/%d/schema'|format(scraper.id)) }}{% endif %}
+  </form>
+
+  {% if freshness and freshness.stale %}
+    {% call ui.banner('drift', 'Provisional: %s'|format(freshness.reason)) %}
+      {{ ui.smallbtn('Repairs', 'accent', '/repairs') }}
+      {{ ui.smallbtn('Script rows only', '',
+                     '/records?' ~ (('scraper_id=' ~ scraper_id ~ '&') if scraper_id else '') ~ 'include_fallback=false') }}
+    {% endcall %}
+  {% endif %}
+
+  <div class="toolbar">
+    {{ ui.chip('%s rows returned'|format(rows|length), 'text-2') }}
+    {{ ui.chip('%d from llm fallback'|format(fallback_count), 'agent' if fallback_count else 'text-3') }}
+    {{ ui.chip('%s stored in total'|format(total|num), 'text-3') }}
+  </div>
+
+  {% call ui.panel(grow=true) %}
+    {% call ui.phead('Records', scraper.name if scraper else 'every scraper') %}
+      {{ ui.btn('Runs', 'ghost', 'play', '/runs' ~ ('?scraper_id=%d'|format(scraper_id) if scraper_id else ''), small=true) }}
+    {% endcall %}
+
+    {% if rows %}
+    <div class="tbl-wrap">
+      <table class="tbl zebra">
+        <thead>
+          <tr>
+            <th style="width:150px">Extracted at</th>
+            <th style="width:70px">Run</th>
+            {%- for c in columns %}<th>{{ c }}</th>{% endfor %}
+            <th style="width:90px">Source</th>
+            <th style="width:160px">Scraper</th>
+          </tr>
+        </thead>
+        <tbody>
+        {%- for rec, name in rows %}
+          <tr>
+            <td class="t-text-3">{{ rec.created_at|dt }}</td>
+            <td><a href="/runs/{{ rec.run_id }}">#{{ rec.run_id }}</a></td>
+            {%- for c in columns %}
+            {%- set v = (rec.data or {}).get(c) %}
+            <td class="{{ 't-fail' if v is none else '' }}" title="{{ v if v is not none else 'null' }}">
+              {{ 'null' if v is none else v }}</td>
+            {%- endfor %}
+            <td>{{ ui.chip(rec.source, 'agent' if rec.source != 'script' else 'text-3') }}</td>
+            <td><a href="/scrapers/{{ rec.scraper_id }}">{{ name }}</a></td>
+          </tr>
+        {%- endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="pfoot">
+      <span>showing {{ rows|length }} of {{ total|num }}</span>
+      <span class="spacer"></span>
+      {%- set base = '/records?' ~ (('scraper_id=' ~ scraper_id ~ '&') if scraper_id else '') %}
+      {%- if page > 1 %}<a class="smallbtn" href="{{ base }}page={{ page - 1 }}">Prev</a>{% endif %}
+      <span class="mono">page {{ page }} of {{ pages }}</span>
+      {%- if page < pages %}<a class="smallbtn" href="{{ base }}page={{ page + 1 }}">Next</a>{% endif %}
+    </div>
+    {% else %}
+      {% call ui.empty('No records yet', 'A passing run writes its rows here, and the source column separates script rows from LLM fallback rows.', 'db') %}
+        {{ ui.btn('Scrapers', 'primary', 'db', '/scrapers') }}
+      {% endcall %}
+    {% endif %}
+  {% endcall %}
+
+</div>
+{% endblock %}

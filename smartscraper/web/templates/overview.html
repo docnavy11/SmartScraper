@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}
+  {{ ui.btn('Run all due', 'ghost', 'play', '/scrapers') }}
+  {{ ui.btn('New scraper', 'primary', 'plus', '/scrapers/new') }}
+{% endblock %}
+
+{% block content %}
+<div class="pad">
+
+  <div class="tiles">
+    {{ ui.tile('scrapers', health.total,
+               '%d healthy · %d drift · %d failed'|format(health.healthy, health.drift, health.failed),
+               ic='db') }}
+    {{ ui.tile('runs today', today.runs|num,
+               '%d passed · %d failed'|format(today.passed, today.failed), ic='play') }}
+    {{ ui.tile('rows today', today.rows|num, 'from passed runs only', ic='file') }}
+    {{ ui.tile('pending repairs', repairs.pending, 'awaiting approval',
+               'warn' if repairs.pending else 'text-3', ic='branch') }}
+    {{ ui.tile('spend mtd', spend_mtd|money,
+               'budget %s'|format(settings.monthly_budget|money), ic='zap') }}
+  </div>
+
+  <div class="row stack-lg fill">
+    <div class="col" style="flex:1.45 1 0">
+
+      {% include "partials/attention.html" %}
+
+      {% call ui.panel(grow=true) %}
+        {% call ui.phead('Runs, last 24 hours', '%d runs · %s passed'|format(
+             today.runs, (today.passed / today.runs)|pct(1) if today.runs else '—')) %}
+          {{ ui.btn('All runs', 'ghost', href='/runs', small=true) }}
+        {% endcall %}
+        <div class="pbody-lg" style="flex:1 1 0;justify-content:flex-end">
+          {# Floor the peak so a quiet day reads as short bars, not a full-height block. #}
+          {% set peak = [(strip | map(attribute='total') | max) or 1, 6]|max %}
+          <div class="strip" role="img"
+               aria-label="Runs per hour for the last 24 hours, {{ today.runs }} in total">
+            {%- for b in strip %}
+            <div class="strip-col" title="{{ b.total }} runs">
+              {%- if b.fail %}<i style="height:{{ [3, b.fail * 40 // peak]|max }}px;background:var(--fail)"></i>{% endif -%}
+              {%- if b.warn %}<i style="height:{{ [3, b.warn * 40 // peak]|max }}px;background:var(--warn)"></i>{% endif -%}
+              {%- if b.ok %}<i style="height:{{ [3, b.ok * 40 // peak]|max }}px;background:var(--ok)"></i>{% endif -%}
+            </div>
+            {%- endfor %}
+          </div>
+          <div class="strip-axis"><span>24h ago</span><span>18h</span><span>12h</span><span>6h</span><span>now</span></div>
+        </div>
+      {% endcall %}
+
+    </div>
+
+    {% include "partials/activity.html" %}
+
+    <div class="side-sm col">
+      {% call ui.panel() %}
+        {% call ui.phead('Next scheduled') %}{{ ui.chip(scheduled|length ~ ' scheduled', 'text-3') }}{% endcall %}
+        {% if scheduled %}
+          <div>
+            {%- for s in scheduled %}
+            <div class="sched-row">
+              <a class="grow trunc" href="/scrapers/{{ s.id }}">{{ s.name }}</a>
+              <span class="t-accent trunc" style="max-width:110px" title="cron {{ s.schedule }}">{{ s.schedule }}</span>
+            </div>
+            {%- endfor %}
+          </div>
+        {% else %}
+          <div class="pbody"><p class="field-hint">Nothing is scheduled. Give a scraper a cron expression to see it here.</p></div>
+        {% endif %}
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Agent spend, 7 days') }}
+        <div class="pbody-lg">
+          {%- if spend %}
+            {%- for s in spend %}
+            <div class="barline">
+              <div class="barline-top"><span>{{ s.agent }}</span><span class="t-text-2 num">{{ s.cost|money }}</span></div>
+              {{ ui.bar(s.pct, 'agent' if s.agent in ('builder', 'repair') else 'accent') }}
+            </div>
+            {%- endfor %}
+            <div class="kv" style="border-bottom:0">
+              <span class="kv-k">total</span>
+              <span class="kv-v">{{ (spend | sum(attribute='cost'))|money }}</span>
+            </div>
+          {%- else %}
+            <p class="field-hint">No agent spend in the last 7 days. A normal run costs no tokens.</p>
+          {%- endif %}
+        </div>
+      {% endcall %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

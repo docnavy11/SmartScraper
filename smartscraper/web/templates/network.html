@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}
+  {{ ui.btn('Coverage', 'ghost', 'shield', '/coverage') }}
+{% endblock %}
+
+{% block content %}
+<div class="pad">
+  <div class="row stack-lg fill">
+    <div class="fill col">
+
+      {% call ui.panel() %}
+        {{ ui.phead('Login profiles', '%d stored'|format(profiles|length)) }}
+        {% if profiles %}
+        <div class="tbl-wrap">
+          <table class="tbl fixed">
+            {{ ui.thead([('', '34px', 'left'), ('Profile', '160px', 'left'), ('Domain', '200px', 'left'),
+                         ('Kind', '170px', 'left'), ('Session', '130px', 'left'), ('Last login', '110px', 'left'),
+                         ('', '130px', 'right')]) }}
+            <tbody>
+            {%- for p in profiles %}
+              {%- set expired = p.expires_at and p.expires_at.replace(tzinfo=None) < now.replace(tzinfo=None) %}
+              <tr>
+                <td>{{ ui.status('fail' if expired else 'ok', '') }}</td>
+                <td>{{ p.name }}</td>
+                <td class="t-text-2 trunc">{{ p.domain or '—' }}</td>
+                <td>{{ ui.chip(p.kind, 'text-3') }}</td>
+                <td class="{{ 't-fail' if expired else 't-text-2' }}">{{ p.expires_at|ago if p.expires_at else 'no expiry' }}</td>
+                <td class="t-text-3">{{ p.last_login_at|ago if p.last_login_at else 'never' }}</td>
+                <td class="r">
+                  <form class="inline-form" method="post" action="/network/profiles/{{ p.id }}/relogin">
+                    {{ ui.btn('Re-login', 'ghost', 'key', small=true, type='submit') }}
+                  </form>
+                </td>
+              </tr>
+            {%- endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="pnote">
+          {{ ui.icon('key', 11) }} A re-login opens a headed browser on this machine so you can sign in by hand.
+          That flow is not built yet, so the button records the intent and does nothing else.
+        </div>
+        {% else %}
+          {% call ui.empty('No profiles', 'A login profile stores a signed-in browser session so a scraper can reach a gated page.', 'key') %}{% endcall %}
+        {% endif %}
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Proxy pools', '%d configured'|format(pools|length)) }}
+        {% if pools %}
+        <div class="tbl-wrap">
+          <table class="tbl fixed">
+            {{ ui.thead([('', '34px', 'left'), ('Pool', '130px', 'left'), ('Vendor', '120px', 'left'),
+                         ('Type', '130px', 'left'), ('Used', '90px', 'right'), ('Cost', '90px', 'right'),
+                         ('Rotation', '150px', 'left'), ('Entries', '80px', 'right')]) }}
+            <tbody>
+            {%- for p in pools %}
+              <tr>
+                <td>{{ ui.status('ok' if p.enabled else 'paused', '') }}</td>
+                <td>{{ p.name }}</td>
+                <td class="t-text-2">{{ p.vendor or '—' }}</td>
+                <td>{{ ui.chip(p.kind, 'text-3') }}</td>
+                <td class="r">{{ '%.1f GB'|format(p.gb_used) }}</td>
+                <td class="r t-text-2">{{ p.cost_usd|money }}</td>
+                <td>{{ ui.chip(p.rotation, 'text-3') }}</td>
+                <td class="r t-text-3">{{ (p.entries or [])|length }}</td>
+              </tr>
+            {%- endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+          {% call ui.empty('No proxy pools', 'Without a pool every run goes out from this machine. That is fine until a site rate-limits the address.', 'globe') %}{% endcall %}
+        {% endif %}
+      {% endcall %}
+
+    </div>
+
+    <div class="side col">
+      {% call ui.panel() %}
+        {% call ui.phead('Escalation ladder', 'measured, 7 days') %}
+          {{ ui.btn('By scraper', 'ghost', 'chev', '/coverage', small=true) }}
+        {% endcall %}
+        <div class="pbody">
+          {%- if ladder %}
+            {%- for rung in ladder %}
+            {%- set tone = 'ok' if rung.pct >= 85 else ('warn' if rung.pct >= 50 else 'fail') %}
+            <div class="col" style="gap:5px;padding:8px 0;border-bottom:1px solid var(--line)">
+              <div class="toolbar" style="gap:8px;flex-wrap:nowrap">
+                <span class="mono grow" style="font-size:11.5px">{{ rung.engine }}</span>
+                <span class="mono t-text-3" style="font-size:11px">{{ rung.passed }} of {{ rung.total }}</span>
+                <span class="mono t-{{ tone }}" style="font-size:11px;font-weight:600;width:34px;text-align:right">{{ rung.pct }}%</span>
+              </div>
+              {{ ui.bar(rung.pct, tone) }}
+            </div>
+            {%- endfor %}
+          {%- else %}
+            <p class="field-hint">No runs in the last 7 days, so there is nothing measured to show. This panel
+               never guesses which engine works.</p>
+          {%- endif %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Solvers & captcha') }}
+        <div class="pbody">
+          {% call ui.kv('byparr sidecar') %}
+            {{ ui.chip(settings.byparr_url or 'not configured', 'text-2' if settings.byparr_url else 'text-3') }}
+          {% endcall %}
+          {% call ui.kv('captcha vendor') %}{{ ui.chip(settings.captcha_vendor, 'text-2') }}{% endcall %}
+          {% call ui.kv('captcha key') %}
+            {{ ui.status('ok', 'set') if settings.captcha_key else ui.status('drift', 'missing') }}
+          {% endcall %}
+          {% call ui.kv('auto-solve turnstile') %}{{ ui.toggle(settings.auto_solve_turnstile,
+              'max %s per run'|format(settings.max_captcha_spend_per_run|money)) }}{% endcall %}
+          <p class="pnote-plain">
+            Solve rates are not measured here yet: nothing records a solver attempt against a run. Treat any
+            number you see elsewhere about solver reliability as unmeasured.
+          </p>
+        </div>
+      {% endcall %}
+    </div>
+  </div>
+</div>
+{% endblock %}

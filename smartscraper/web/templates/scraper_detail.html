@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}
+  <form class="inline-form" method="post" action="/scrapers/{{ scraper.id }}/run">
+    {{ ui.btn('Run now', 'primary', 'play', type='submit') }}
+  </form>
+  {% if pending %}
+    {{ ui.btn('Review repair v%d'|format(pending[0].candidate_version), 'solid', 'branch',
+              '/repairs/%d'|format(pending[0].id)) }}
+  {% endif %}
+  {{ ui.btn('Edit script', 'ghost', 'code', '/scrapers/%d/script'|format(scraper.id)) }}
+  <form class="inline-form" method="post"
+        action="/scrapers/{{ scraper.id }}/{{ 'disable' if scraper.enabled else 'enable' }}">
+    <input type="hidden" name="back" value="/scrapers/{{ scraper.id }}">
+    {{ ui.iconbtn('pause' if scraper.enabled else 'play',
+                  'Disable this scraper' if scraper.enabled else 'Enable this scraper', type='submit') }}
+  </form>
+{% endblock %}
+
+{% block content %}
+<div class="pad">
+
+  {% if freshness.stale %}
+    {% call ui.banner('drift', 'Stale: %s'|format(freshness.reason)) %}
+      {%- if pending %}{{ ui.smallbtn('Review v%d'|format(pending[0].candidate_version), 'accent',
+                                      '/repairs/%d'|format(pending[0].id)) }}{% endif %}
+      {{ ui.smallbtn('Records', '', '/records?scraper_id=%d'|format(scraper.id)) }}
+    {% endcall %}
+  {% endif %}
+
+  <div class="tiles">
+    {%- set last = runs[0] if runs else none %}
+    {{ ui.tile('last run', ('%s rows'|format(last.row_count|num)) if last else 'never',
+               RUN_STATUS_WORD.get(last.status, '') if last else 'no run yet',
+               'ok' if last and last.status == 'passed' else ('fail' if last else 'text-3'), ic='alert') }}
+    {{ ui.tile('7-day pass rate', stats.pass_rate|pct if stats.pass_rate is not none else '—',
+               '%d of %d runs'|format(stats.passed7, stats.runs7),
+               'ok' if stats.pass_rate and stats.pass_rate > 0.9 else 'warn', ic='check') }}
+    {{ ui.tile('mean duration', stats.avg_ms|dur, 'all runs', ic='clock') }}
+    {{ ui.tile('agent spend 7d', stats.spend7|money, 'builds and repairs',
+               'agent' if stats.spend7 else 'text-3', ic='zap') }}
+    {{ ui.tile('total rows', stats.rows_total|num, 'stored records', ic='db') }}
+  </div>
+
+  <div class="row stack-lg fill">
+    <div class="fill col">
+
+      {% call ui.panel() %}
+        {{ ui.phead('Row count, last %d runs'|format(series|length)) }}
+        <div class="pbody-lg">
+          {% if series %}
+            {%- set peak = (series | map(attribute='row_count') | max) or 1 %}
+            <div class="spark" role="img" aria-label="Row count over the last {{ series|length }} runs">
+              {%- for r in series %}
+              <i style="height:{{ [3, (r.row_count * 52 // peak)]|max }}px;background:var(--{{ 'ok' if r.status == 'passed' else 'fail' }})"
+                 title="run #{{ r.id }} · {{ r.row_count }} rows"></i>
+              {%- endfor %}
+            </div>
+            <div class="strip-axis"><span>{{ series|length }} runs ago</span><span>now</span></div>
+          {% else %}
+            <p class="field-hint">No runs to plot yet.</p>
+          {% endif %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {% call ui.phead('Recent runs', '%d shown'|format(runs|length)) %}
+          {{ ui.btn('All runs', 'ghost', href='/runs?scraper_id=%d'|format(scraper.id), small=true) }}
+        {% endcall %}
+        {% if runs %}
+        <div class="tbl-wrap">
+          <table class="tbl fixed">
+            {{ ui.thead([('', '34px', 'left'), ('Run', '72px', 'left'), ('When', '92px', 'left'),
+                         ('Rows', '76px', 'right'), ('Dur', '70px', 'right'), ('Engine', '150px', 'left'),
+                         ('Ver', '54px', 'left')]) }}
+            <tbody>
+            {%- for r in runs %}
+              <tr>
+                <td>{{ ui.run_status(r.status, '') }}</td>
+                <td><a href="/runs/{{ r.id }}">#{{ r.id }}</a></td>
+                <td class="mono t-text-2" style="font-size:11.5px">{{ r.created_at|ago }}</td>
+                <td class="r mono {{ 't-fail' if r.status != 'passed' else '' }}">{{ r.row_count|num }}</td>
+                <td class="r mono t-text-2" style="font-size:11.5px">{{ r.duration_ms|dur }}</td>
+                <td>{{ ui.chip(r.engine_used or '—', 'text-3') }}</td>
+                <td>{{ ui.chip('v%d'|format(r.script_version), 'text-3') }}</td>
+              </tr>
+            {%- endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+          {% call ui.empty('No runs yet', 'Run it once to see how the script behaves against the live page.', 'play') %}
+            <form method="post" action="/scrapers/{{ scraper.id }}/run">{{ ui.btn('Run now', 'primary', 'play', type='submit') }}</form>
+          {% endcall %}
+        {% endif %}
+      {% endcall %}
+
+    </div>
+
+    <div class="side col">
+      {% call ui.panel() %}
+        {% call ui.phead('Configuration') %}
+          {{ ui.iconbtn('gear', 'Scraper settings', '/settings') }}
+        {% endcall %}
+        <div class="pbody">
+          {% call ui.kv('target') %}<a href="{{ scraper.url }}" rel="noreferrer noopener">{{ scraper.url }}</a>{% endcall %}
+          {{ ui.kv('schedule', scraper.schedule or 'manual') }}
+          {% call ui.kv('profile') %}{{ ui.chip(scraper.profile or 'none', 'text-2') }}{% endcall %}
+          {% call ui.kv('proxy pool') %}{{ ui.chip(scraper.proxy_pool or 'none', 'text-2') }}{% endcall %}
+          {% call ui.kv('promotion') %}{{ ui.chip(scraper.promotion_policy, 'warn' if scraper.promotion_policy != 'manual' else 'text-2') }}{% endcall %}
+          {% call ui.kv('fallback') %}
+            {{ ui.chip('%s · %s'|format(scraper.fallback_model or settings.fallback_model,
+                                        'enabled' if scraper.fallback_enabled else 'off'), 'agent') }}
+          {% endcall %}
+          {% call ui.kv('robots') %}{{ ui.chip('respected' if scraper.respect_robots else 'ignored',
+                                               'ok' if scraper.respect_robots else 'warn') }}{% endcall %}
+          {{ ui.kv('budget', scraper.budget_usd_month|money) }}
+          {{ ui.kv('yaml', scraper.yaml_path) }}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel() %}
+        {% call ui.phead('Active script') %}
+          {{ ui.btn('Open', 'ghost', 'code', '/scrapers/%d/script'|format(scraper.id), small=true) }}
+        {% endcall %}
+        <div class="pbody">
+          {% if version %}
+            {% call ui.kv('version') %}{{ ui.chip('v%d active'|format(version.version), 'ok') }}{% endcall %}
+            {% call ui.kv('written by') %}{{ ui.chip(version.created_by,
+                'agent' if version.created_by in ('builder', 'repair') else 'text-2') }}{% endcall %}
+            {{ ui.kv('changed', version.change_summary or '—') }}
+            {% call ui.kv('custom_python') %}
+              {{ ui.chip('yes · human approval', 'warn') if version.has_custom_python else ui.chip('no', 'text-3') }}
+            {% endcall %}
+          {% else %}
+            <p class="field-hint">No active version. The builder has not written a script for this scraper yet.</p>
+          {% endif %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {% call ui.phead('Delivery targets', '%d enabled'|format(targets|length)) %}
+          {{ ui.btn('Manage', 'ghost', 'send', '/delivery', small=true) }}
+        {% endcall %}
+        <div class="pbody">
+          {%- if targets %}
+            {%- for t in targets %}
+            <div class="listrow">
+              {{ ui.chip(t.kind, 'accent' if t.kind == 'mcp' else 'text-3') }}
+              <span class="grow trunc">{{ t.config.get('url') or t.config.get('path') or t.config.get('tool') or '—' }}</span>
+              {{ ui.chip(t.fmt, 'text-3') }}
+            </div>
+            {%- endfor %}
+          {%- else %}
+            <p class="field-hint">Nothing is delivered. Rows are stored and readable over MCP, but nothing is pushed.</p>
+          {%- endif %}
+        </div>
+      {% endcall %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

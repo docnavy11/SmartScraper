@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}
+  {{ ui.chip(scraper.promotion_policy if scraper else 'manual', 'warn') }}
+  {% if failed_run %}{{ ui.btn('Open run #%d'|format(failed_run.id), 'ghost', 'ext', '/runs/%d'|format(failed_run.id)) }}{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="pad">
+  <div class="row stack-lg fill">
+
+    {% call ui.panel(grow=true, cls='fill') %}
+      <div class="phead">
+        <span class="phead-title">Unified diff</span>
+        {%- set rows = repair.diff|parse_diff %}
+        {{ ui.chip('+%d −%d'|format(rows | selectattr('kind', 'equalto', '+') | list | length,
+                                    rows | selectattr('kind', 'equalto', '-') | list | length), 'text-2') }}
+        {{ ui.chip('%d hunks'|format(rows | selectattr('kind', 'equalto', 'h') | list | length), 'text-3') }}
+        <span class="spacer"></span>
+        {{ ui.btn('Open in editor', 'ghost', 'code',
+                  '/scrapers/%d/script?version=%d'|format(repair.scraper_id, repair.candidate_version), small=true) }}
+      </div>
+
+      {% if repair.diff %}
+        {{ ui.diff_block(rows) }}
+      {% else %}
+        <div class="pbody"><p class="field-hint">This repair stored no diff. Compare the versions in the script editor.</p></div>
+      {% endif %}
+
+      <div class="phead" style="border-top:1px solid var(--line);border-bottom:0">
+        {%- if test_run %}
+          {{ ui.status('ok' if test_run.status == 'passed' else 'fail',
+                       'test run #%d · %s rows · %s'|format(test_run.id, test_run.row_count, test_run.status)) }}
+        {%- else %}
+          {{ ui.status('drift', 'no test run recorded') }}
+        {%- endif %}
+        <span class="spacer"></span>
+        <form class="inline-form" method="post" action="/repairs/{{ repair.id }}/reject">
+          <input type="hidden" name="back" value="/repairs">
+          {{ ui.btn('Reject', 'danger', 'x', type='submit') }}
+        </form>
+        <form class="inline-form" method="post" action="/repairs/{{ repair.id }}/approve">
+          <input type="hidden" name="back" value="/scrapers/{{ repair.scraper_id }}">
+          {{ ui.btn('Approve & promote', 'primary', 'check', type='submit') }}
+        </form>
+      </div>
+    {% endcall %}
+
+    <div class="side-lg col">
+      {% call ui.panel() %}
+        {{ ui.phead('Why', 'candidate v%d'|format(repair.candidate_version)) }}
+        <div class="pbody-lg">
+          <div class="turn-head">{{ ui.icon('zap', 12, 't-agent') }}<span class="turn-who t-agent">repair agent</span></div>
+          <p class="turn-text">{{ repair.reason or 'The agent recorded no rationale.' }}</p>
+          <div>
+            {% call ui.kv('classified') %}{{ ui.chip('minor' if repair.is_minor else 'major',
+                                                     'ok' if repair.is_minor else 'warn') }}{% endcall %}
+            {% call ui.kv('from → to') %}
+              {{ ui.chip('v%s'|format(active_version.version if active_version else '?'), 'text-3') }}
+              →
+              {{ ui.chip('v%d'|format(repair.candidate_version), 'agent') }}
+            {% endcall %}
+            {% call ui.kv('custom_python') %}
+              {{ ui.chip('yes · needs approval', 'warn') if candidate and candidate.has_custom_python
+                 else ui.chip('no', 'text-3') }}
+            {% endcall %}
+            {{ ui.kv('proposed', repair.created_at|ago) }}
+            {%- if failed_run %}{{ ui.kv('after run', '#%d'|format(failed_run.id)) }}{% endif %}
+          </div>
+        </div>
+      {% endcall %}
+
+      {%- set before = ((failed_run.validator_report or {}).get('rules') or []) if failed_run else [] %}
+      {%- set after = ((test_run.validator_report or {}).get('rules') or []) if test_run else [] %}
+      {% call ui.panel() %}
+        {% call ui.phead('Validation, before and after') %}
+          {{ ui.chip('%d failing before'|format(before | rejectattr('passed') | list | length), 'fail') }}
+        {% endcall %}
+        <div class="pbody">
+          {%- if before %}
+            {%- for r in before %}
+            {%- set match = after | selectattr('rule', 'equalto', r.get('rule')) | list %}
+            <div class="listrow">
+              <span class="grow">{{ r.get('rule') }}</span>
+              <span class="mono {{ 't-fail' if not r.get('passed') else 't-text-3' }}" style="width:74px;text-align:right">
+                {{ r.get('measured') }}</span>
+              <span class="t-text-3">→</span>
+              <span class="mono {{ 't-ok' if match and match[0].get('passed') else 't-text-3' }}" style="width:74px;text-align:right">
+                {{ match[0].get('measured') if match else '—' }}</span>
+            </div>
+            {%- endfor %}
+          {%- else %}
+            <p class="field-hint">No before-and-after report. The failing run stored no validator output.</p>
+          {%- endif %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel() %}
+        {{ ui.phead('Impact', 'before you approve') }}
+        <div class="pbody">
+          {% call ui.kv('delivers to') %}
+            {%- for t in targets %}{{ ui.chip(t.kind, 'accent' if t.kind == 'mcp' else 'text-2') }} {% endfor %}
+            {%- if not targets %}<span class="t-text-3">nothing</span>{% endif %}
+          {% endcall %}
+          {{ ui.kv('schedule', scraper.schedule or 'manual' if scraper else '—') }}
+          {% call ui.kv('promotion') %}{{ ui.chip(scraper.promotion_policy if scraper else 'manual', 'warn') }}{% endcall %}
+          <p class="pnote-plain">
+            Approving retires the current active version, activates v{{ repair.candidate_version }} and
+            rewrites {{ scraper.yaml_path if scraper else 'the script file' }}, so the table and the file on
+            disk stay in step. Every future run of this scraper executes the new script.
+          </p>
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Sample rows from the test run', 'first %d'|format(sample|length)) }}
+        {% if sample %}
+          {%- set cols = [] %}
+          {%- for r in sample %}{% for k in r.data or {} %}{% if k not in cols and cols|length < 4 %}{% set _ = cols.append(k) %}{% endif %}{% endfor %}{% endfor %}
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead><tr>{% for c in cols %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+              <tbody>
+              {%- for r in sample %}
+                <tr>{% for c in cols %}{% set v = (r.data or {}).get(c) %}
+                  <td class="{{ 't-fail' if v is none else '' }}">{{ 'null' if v is none else v }}</td>{% endfor %}</tr>
+              {%- endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="pbody"><p class="field-hint">The test run stored no records.</p></div>
+        {% endif %}
+      {% endcall %}
+    </div>
+  </div>
+</div>
+{% endblock %}

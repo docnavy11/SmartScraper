@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block content %}
+<div class="pad">
+  {% call ui.panel(grow=true) %}
+    {{ ui.phead('Error', code|string) }}
+    {% call ui.empty(message, 'Nothing was changed.', 'alert') %}
+      {{ ui.btn('Back to overview', 'primary', 'chev', '/') }}
+    {% endcall %}
+  {% endcall %}
+</div>
+{% endblock %}

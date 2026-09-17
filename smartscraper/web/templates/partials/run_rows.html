@@ -1,0 +1,82 @@
+{% import "_ui.html" as ui with context %}
+{%- set qs = '?' ~ (('scraper_id=' ~ scraper_id ~ '&') if scraper_id else '') ~ (('status=' ~ status ~ '&') if status else '') -%}
+<div id="run-list" class="fill col"
+     hx-get="/partials/runs{{ qs }}page={{ page }}" hx-swap="outerHTML"
+     hx-trigger="every 15s [document.querySelectorAll('#run-rows input[name=&quot;run_id&quot;]:checked').length === 0]">
+{% call ui.panel(grow=true) %}
+  <form method="post" action="/runs/bulk/rerun">
+    <input type="hidden" name="back" value="{{ request.url.path }}{{ request.url.query and '?' ~ request.url.query or '' }}">
+    <div class="phead">
+      <label class="vh" for="select-all">Select every run in this list</label>
+      {{ ui.cbox('select_all', 'all', aria='Select every run in this list') }}
+      <span class="phead-title" id="bulk-count">0 selected</span>
+      <span class="vr" aria-hidden="true"></span>
+      {{ ui.btn('Re-run selected', 'solid', 'refresh', small=true, type='submit') }}
+      <span class="spacer"></span>
+      <span class="phead-sub">{{ total|num }} runs · newest first</span>
+    </div>
+
+    {% if rows %}
+    <div class="tbl-wrap" id="run-rows">
+      <table class="tbl fixed">
+        {{ ui.thead([('', '30px', 'left'), ('', '36px', 'left'), ('Run', '70px', 'left'),
+                     ('Scraper', '166px', 'left'), ('Ver', '50px', 'left'), ('Started', '90px', 'left'),
+                     ('Duration', '82px', 'right'), ('Rows', '76px', 'right'), ('Engine', '140px', 'left'),
+                     ('Esc', '48px', 'right'), ('Agent cost', '86px', 'right'), ('Trigger', '84px', 'right')]) }}
+        <tbody>
+        {%- for run, name in rows %}
+          <tr>
+            <td>{{ ui.cbox('run_id', run.id, aria='Select run %d'|format(run.id)) }}</td>
+            <td>{{ ui.run_status(run.status, '') }}</td>
+            <td><a href="/runs/{{ run.id }}">#{{ run.id }}</a></td>
+            <td><a href="/scrapers/{{ run.scraper_id }}">{{ name }}</a></td>
+            <td>{{ ui.chip('v%d'|format(run.script_version), 'text-3') }}</td>
+            <td class="mono t-text-2" style="font-size:11.5px">{{ run.created_at|time }}</td>
+            <td class="r mono t-text-2" style="font-size:11.5px">{{ run.duration_ms|dur }}</td>
+            <td class="r mono {{ 't-text' if run.row_count else 't-text-3' }}">{{ run.row_count|num }}</td>
+            <td>{{ ui.chip(run.engine_used or '—', 'text-3') }}</td>
+            <td class="r mono {{ 't-warn' if run.escalation_level > 1 else 't-text-3' }}" style="font-size:11.5px">
+              {{ run.escalation_level }}</td>
+            <td class="r mono {{ 't-agent' if run.cost_usd else 't-text-3' }}" style="font-size:11.5px">
+              {{ run.cost_usd|money if run.cost_usd else '—' }}</td>
+            <td class="r mono t-text-3" style="font-size:11.5px">{{ run.trigger }}</td>
+          </tr>
+        {%- endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="pfoot">
+      <span>showing {{ rows|length }} of {{ total|num }}</span>
+      <span class="spacer"></span>
+      {%- if page > 1 %}<a class="smallbtn" href="/runs{{ qs }}page={{ page - 1 }}">Prev</a>{% endif %}
+      <span class="mono">page {{ page }} of {{ pages }}</span>
+      {%- if page < pages %}<a class="smallbtn" href="/runs{{ qs }}page={{ page + 1 }}">Next</a>{% endif %}
+    </div>
+    {% else %}
+      {% call ui.empty('No runs yet', 'A run appears here the moment a scraper starts, whether you triggered it or the schedule did.', 'play') %}
+        {{ ui.btn('Scrapers', 'primary', 'db', '/scrapers') }}
+      {% endcall %}
+    {% endif %}
+  </form>
+{% endcall %}
+</div>
+<script>
+  (function () {
+    var master = document.querySelector('#run-list input[name="select_all"]');
+    var rows = document.getElementById('run-rows');
+    var count = document.getElementById('bulk-count');
+    if (!master || !rows) return;
+    function boxes() { return rows.querySelectorAll('input[name="run_id"]'); }
+    function sync() {
+      var n = 0;
+      boxes().forEach(function (b) { if (b.checked) n++; });
+      if (count) count.textContent = n + ' selected';
+    }
+    master.addEventListener('change', function () {
+      boxes().forEach(function (b) { b.checked = master.checked; });
+      sync();
+    });
+    rows.addEventListener('change', sync);
+    sync();
+  })();
+</script>

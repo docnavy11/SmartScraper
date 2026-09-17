@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block content %}
+<div class="pad">
+  <div class="row row-wrap fill">
+
+    <div class="side-sm col">
+      {% call ui.panel() %}
+        {% call ui.phead('Palette · dark') %}{{ ui.chip('default', 'accent') }}{% endcall %}
+        <div class="pbody">
+          {%- for name, hexv, note in [('bg', '#0B0E14', 'page'), ('surface', '#10141D', 'panels'),
+                                       ('surface-2', '#151A25', 'headers'), ('surface-3', '#1C2331', 'hover'),
+                                       ('line', '#212836', 'hairline'), ('line-2', '#2E3849', 'inputs'),
+                                       ('text', '#E3E8F0', 'primary'), ('text-2', '#99A3B5', 'secondary'),
+                                       ('text-3', '#7F8AA1', 'meta')] %}
+          {{ ui.swatch(name, hexv, note) }}
+          {%- endfor %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Semantic') }}
+        <div class="pbody">
+          {%- for name, hexv, note in [('accent', '#35C2C2', 'action / running'), ('ok', '#3FB950', 'passed'),
+                                       ('warn', '#D29922', 'drift'), ('fail', '#F85149', 'failed'),
+                                       ('agent', '#A371F7', 'llm authored')] %}
+          {{ ui.swatch(name, hexv, note) }}
+          {%- endfor %}
+        </div>
+      {% endcall %}
+    </div>
+
+    <div class="side-sm col">
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Palette · light') }}
+        <div class="pbody">
+          {%- for name, hexv, note in [('bg', '#F7F8FA', 'page'), ('surface', '#FFFFFF', 'panels'),
+                                       ('surface-2', '#F2F4F7', 'headers'), ('line', '#E3E7ED', 'hairline'),
+                                       ('text', '#11151F', 'primary'), ('text-2', '#5A6577', 'secondary'),
+                                       ('text-3', '#616A7A', 'meta'),
+                                       ('accent', '#0C6F6E', 'action'), ('ok', '#177332', 'passed'),
+                                       ('warn', '#8F6000', 'drift'), ('fail', '#CF222E', 'failed'),
+                                       ('agent', '#6639BA', 'llm authored')] %}
+          {{ ui.swatch(name, hexv, note) }}
+          {%- endfor %}
+        </div>
+      {% endcall %}
+    </div>
+
+    <div class="fill col">
+      {% call ui.panel() %}
+        {{ ui.phead('Type scale', 'IBM Plex Sans + Mono') }}
+        <div class="pbody">
+          {%- for lab, size, fam, weight, use in [('Page title', 17, 'sans', 600, 'one per screen'),
+                                                  ('Panel header', 11.5, 'sans', 600, 'uppercase tracking on labels'),
+                                                  ('Body', 12.5, 'sans', 400, 'chrome, forms, prose'),
+                                                  ('Table cell', 12, 'mono', 400, 'tabular numerals'),
+                                                  ('Log line', 11, 'mono', 400, 'wraps, never truncates'),
+                                                  ('Meta', 10.5, 'mono', 400, 'timestamps, counts')] %}
+          <div class="listrow" style="align-items:baseline">
+            <span class="grow" style="font-family:var(--{{ fam }});font-size:{{ size }}px;font-weight:{{ weight }};color:var(--text)">{{ lab }}</span>
+            <span class="t-text-3">{{ size }}px</span>
+            <span class="t-text-3" style="width:180px;text-align:right">{{ use }}</span>
+          </div>
+          {%- endfor %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Components') }}
+        <div class="pbody-lg" style="gap:14px">
+          <div class="col" style="gap:6px">
+            {{ ui.label('Buttons') }}
+            <div class="toolbar">
+              {{ ui.btn('Primary', 'primary', 'check') }}
+              {{ ui.btn('Solid', 'solid') }}
+              {{ ui.btn('Ghost', 'ghost', 'play') }}
+              {{ ui.btn('Danger', 'danger', 'x') }}
+              {{ ui.iconbtn('gear', 'Example icon button') }}
+              {{ ui.smallbtn('Small') }}
+            </div>
+          </div>
+          <div class="col" style="gap:6px">
+            {{ ui.label('Chips') }}
+            <div class="toolbar">
+              {{ ui.chip('patchright') }}{{ ui.chip('v8', 'agent') }}{{ ui.chip('llm', 'agent') }}
+              {{ ui.chip('held', 'warn') }}{{ ui.chip('mcp', 'accent') }}
+            </div>
+          </div>
+          <div class="col" style="gap:6px">
+            {{ ui.label('Status') }}
+            <div class="toolbar" style="gap:14px">
+              {{ ui.status('ok') }}{{ ui.status('drift') }}{{ ui.status('fail') }}
+              {{ ui.status('run') }}{{ ui.status('queued') }}{{ ui.status('paused') }}{{ ui.status('agent') }}
+            </div>
+          </div>
+          <div class="col" style="gap:6px">
+            {{ ui.label('Inputs') }}
+            <div class="toolbar">
+              <span style="width:200px">{{ ui.inp('demo', 'css=.product-card', id='sg-demo') }}</span>
+              <label class="vh" for="sg-demo">Example selector</label>
+              {{ ui.toggle(true, 'enabled') }}
+              {{ ui.cbox('sg-check', '1', true, 'Example checkbox') }}
+            </div>
+          </div>
+          <div class="col" style="gap:6px">
+            {{ ui.label('Table') }}
+            {{ ui.table([('Scraper', '140px', 'left'), ('Rows', '70px', 'right'), ('Status', '110px', 'left')],
+                        [['hn-frontpage', '30', ui.status('ok')],
+                         ['shop-eu-prices', '118', ui.status('drift')]]) }}
+          </div>
+        </div>
+      {% endcall %}
+    </div>
+
+    <div class="side col">
+      {% call ui.panel() %}
+        {{ ui.phead('Banners') }}
+        <div class="pbody-lg">
+          {% call ui.banner('drift', 'Held delivery and pending approval both read amber.') %}{% endcall %}
+          {% call ui.banner('fail', 'Red is reserved for a failed run or a site that blocked us.') %}{% endcall %}
+          {% call ui.banner('agent', 'Purple marks anything an LLM authored.') %}{% endcall %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {% call ui.phead('Screens', '%d'|format(screens|length)) %}
+          {{ ui.chip('%d not built'|format(screens | selectattr('state', 'equalto', 'not built') | list | length), 'warn') }}
+        {% endcall %}
+        <div class="pscroll" style="padding:8px 12px 11px">
+          {%- for sc in screens %}
+          <a class="listrow" style="text-decoration:none" href="{{ sc.href or '#' }}">
+            <span class="t-text-3" style="width:18px">{{ '%02d'|format(sc.n) }}</span>
+            <span class="grow trunc {{ 't-text-3' if sc.state == 'not built' else 't-text-2' }}">{{ sc.name }}</span>
+            {%- if sc.state != 'built' %}{{ ui.chip(sc.state, 'warn' if sc.state == 'not built' else 'text-3') }}{% endif %}
+            {{ ui.icon('chev', 11) }}
+          </a>
+          {%- endfor %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Rules') }}
+        <div class="pbody-lg">
+          {%- for tone, text in [('accent', 'Density beats comfort. 28px table rows, 12px mono cells, tabular numerals.'),
+                                 ('ok', 'Status is a glyph plus a word, never colour alone.'),
+                                 ('agent', 'Purple marks anything an LLM authored: versions, rows, spend.'),
+                                 ('warn', 'Held delivery and pending approval both read amber, never red.'),
+                                 ('fail', 'Red is reserved for a run that failed or a site that blocked us.'),
+                                 ('text-2', 'Real button, anchor, input and label elements, so Tab reaches them.'),
+                                 ('text-2', 'Text meets 4.5:1. text-3 is the floor and never goes below 10.5px.'),
+                                 ('text-2', 'No shadows, no gradients, no emoji. Icons are 1.75px stroke SVG.')] %}
+          <div class="toolbar" style="gap:8px;flex-wrap:nowrap;align-items:flex-start">
+            <span class="t-{{ tone }} mono" style="font-size:10px;line-height:17px">●</span>
+            <span class="mono t-text-2" style="font-size:11px;line-height:1.55">{{ text }}</span>
+          </div>
+          {%- endfor %}
+        </div>
+      {% endcall %}
+    </div>
+  </div>
+</div>
+{% endblock %}

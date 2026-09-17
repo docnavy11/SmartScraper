@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}
+  {{ ui.btn('Back to network', 'ghost', 'chev', '/network') }}
+{% endblock %}
+
+{% block content %}
+<div class="pad">
+  <div class="row stack-lg fill">
+
+    {% call ui.panel(grow=true, cls='fill') %}
+      {{ ui.phead('Success by scraper and engine', 'last 30 days · percent, attempts below') }}
+      {% if grid %}
+      <div class="pscroll" style="padding:10px 0 4px">
+        <div class="cov-row" style="border-bottom:0;padding-bottom:7px">
+          <span class="cov-name"></span>
+          {%- for e in engines %}
+          <span class="cell" style="border:0;background:transparent"><b class="lbl">{{ e }}</b></span>
+          {%- endfor %}
+          <span class="cov-advice"></span>
+        </div>
+        {%- for row in grid %}
+        <div class="cov-row">
+          <a class="cov-name" href="/scrapers">{{ row.name }}</a>
+          {%- for c in row.cells %}
+            {%- if not c.total %}
+          <span class="cell none" title="{{ c.engine }} never reached">—</span>
+            {%- else %}
+          <span class="cell {{ 'ok' if c.pct >= 85 else ('warn' if c.pct >= 50 else 'fail') }}"
+                title="{{ c.engine }} · {{ c.pct }}% of {{ c.total }} attempts">
+            <b>{{ c.pct }}%</b><i>{{ c.total }}</i>
+          </span>
+            {%- endif %}
+          {%- endfor %}
+          <span class="cov-advice">{{ row.cells | selectattr('total') | map(attribute='engine') | join(', ') }}</span>
+        </div>
+        {%- endfor %}
+      </div>
+      <div class="pnote">
+        {{ ui.icon('zap', 11) }} A dash means the rung was never reached. Every number here is counted from this
+        install's own runs. Nothing on this screen is a general claim about which engine beats which vendor.
+      </div>
+      {% else %}
+        {% call ui.empty('Nothing measured yet', 'This grid counts real attempts per engine. It stays empty until runs have recorded an engine.', 'shield') %}
+          {{ ui.btn('Runs', 'primary', 'play', '/runs') }}
+        {% endcall %}
+      {% endif %}
+    {% endcall %}
+
+    <div class="side col">
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Why we were blocked', '%d reasons'|format(blocks|length)) }}
+        <div class="pbody">
+          {%- if blocks %}
+            {%- for b in blocks %}
+            {%- set tone = 'fail' if b.pct >= 30 else 'warn' %}
+            <div class="col" style="gap:4px;padding:6px 0;border-bottom:1px solid var(--line)">
+              <div class="barline-top">
+                <span class="t-text-2">{{ b.reason }}</span>
+                <span class="t-{{ tone }}">{{ b.n }}</span>
+              </div>
+              {{ ui.bar(b.pct, tone) }}
+            </div>
+            {%- endfor %}
+          {%- else %}
+            <p class="field-hint">No run has recorded a block reason in the last 30 days.</p>
+          {%- endif %}
+        </div>
+      {% endcall %}
+    </div>
+  </div>
+</div>
+{% endblock %}

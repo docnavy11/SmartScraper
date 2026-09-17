@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{#
+  A screen from the UI.md inventory that has no implementation yet. It exists so
+  a link never lands on a 404, and it says what is missing rather than showing a
+  convincing shell with no data behind it.
+#}
+
+{% block actions %}
+  {%- for label, href in links %}{{ ui.btn(label, 'ghost', 'chev', href) }}{% endfor %}
+{% endblock %}
+
+{% block content %}
+<div class="pad">
+  {% call ui.panel(grow=true) %}
+    {% call ui.phead(page_title, page_sub) %}{{ ui.chip('not built', 'warn') }}{% endcall %}
+    <div class="empty">
+      <span class="empty-mark">{{ ui.icon(icon, 19) }}</span>
+      <h2>{{ headline }}</h2>
+      <p>{{ blurb }}</p>
+
+      <div class="cards" style="max-width:760px">
+        {%- for what, why in needs %}
+        <div class="card">
+          <span class="card-mark">{{ ui.icon('branch', 15) }}</span>
+          <h3 class="mono" style="font-size:11.5px">{{ what }}</h3>
+          <p>{{ why }}</p>
+        </div>
+        {%- endfor %}
+      </div>
+
+      <div class="empty-acts">
+        {%- for label, href in links %}{{ ui.btn(label, 'primary' if loop.first else 'ghost', 'chev', href) }}{% endfor %}
+      </div>
+    </div>
+  {% endcall %}
+</div>
+{% endblock %}

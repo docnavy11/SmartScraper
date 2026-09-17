@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}
+  {{ ui.btn('Refresh', 'ghost', 'refresh', '/runs') }}
+{% endblock %}
+
+{% block content %}
+<div class="pad">
+
+  <form class="toolbar" method="get" action="/runs">
+    <label class="vh" for="f-scraper">Scraper</label>
+    <select class="input" id="f-scraper" name="scraper_id" style="width:190px">
+      <option value="">All scrapers</option>
+      {%- for s in scrapers %}
+      <option value="{{ s.id }}"{{ ' selected' if scraper_id == s.id }}>{{ s.name }}</option>
+      {%- endfor %}
+    </select>
+    <label class="vh" for="f-status">Status</label>
+    <select class="input" id="f-status" name="status" style="width:170px">
+      <option value="">Any status</option>
+      {%- for st in statuses %}
+      <option value="{{ st }}"{{ ' selected' if status == st }}>{{ st }}</option>
+      {%- endfor %}
+    </select>
+    {{ ui.btn('Filter', 'solid', 'filter', type='submit') }}
+    {{ ui.btn('Clear', 'ghost', href='/runs') }}
+    <span class="spacer"></span>
+    {{ ui.btn('Failed only', 'ghost', href='/runs?status=validation_failed') }}
+    {{ ui.btn('Blocked', 'ghost', 'shield', '/runs?status=blocked') }}
+  </form>
+
+  <div class="tiles">
+    {{ ui.tile('runs today', today.runs|num, 'across every scraper', ic='play') }}
+    {{ ui.tile('passed', today.passed|num,
+               (today.passed / today.runs)|pct(1) if today.runs else '—', 'ok', ic='check') }}
+    {{ ui.tile('failed', today.failed|num, 'validation, error or blocked',
+               'warn' if today.failed else 'text-3', ic='alert') }}
+    {{ ui.tile('blocked', today.blocked|num, 'site refused us',
+               'fail' if today.blocked else 'text-3', ic='shield') }}
+    {{ ui.tile('mean duration', today.mean_ms|dur, 'today', ic='clock') }}
+  </div>
+
+  {% include "partials/run_rows.html" %}
+
+</div>
+{% endblock %}

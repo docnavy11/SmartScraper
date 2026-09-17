@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}
+  {{ ui.btn('Style guide', 'ghost', 'sliders', '/styleguide') }}
+  {{ ui.btn('Audit log', 'ghost', 'file', '/audit') }}
+{% endblock %}
+
+{% block content %}
+<div class="pad">
+
+  {% call ui.banner('drift', 'Settings are read-only here. smartscraper/config.py loads them from the environment and .env, and the web layer does not own that file.') %}
+  {% endcall %}
+
+  <div class="row stack-lg fill">
+
+    <div class="fill col">
+      {% call ui.panel() %}
+        {{ ui.phead('Models & agents') }}
+        <div class="pbody">
+          {% call ui.kv('builder') %}{{ ui.chip(s.builder_model, 'agent') }} {{ ui.chip('effort ' ~ s.agent_effort, 'text-3') }}{% endcall %}
+          {% call ui.kv('repair') %}{{ ui.chip(s.repair_model, 'agent') }} {{ ui.chip('effort ' ~ s.agent_effort, 'text-3') }}{% endcall %}
+          {% call ui.kv('fallback extract') %}{{ ui.chip(s.fallback_model, 'accent') }}{% endcall %}
+          {{ ui.kv('max turns per build', s.max_builder_turns) }}
+          {{ ui.kv('snapshot budget', '%s KB per turn'|format((s.snapshot_budget_bytes / 1000)|round|int)) }}
+          <p class="pnote-plain">Builder and repair share one gateway, so swapping the harness for the direct
+             API later does not touch the agents.</p>
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Budgets') }}
+        <div class="pbody">
+          {{ ui.kv('monthly cap', s.monthly_budget|money) }}
+          {% call ui.kv('spent this month') %}
+            <span class="{{ 't-warn' if spend_mtd > s.monthly_budget * 0.8 else 't-ok' }}">{{ spend_mtd|money }}</span>
+            <span class="t-text-3">{{ (spend_mtd / s.monthly_budget)|pct if s.monthly_budget else '—' }}</span>
+          {% endcall %}
+          {{ ui.kv('per-scraper default', s.default_scraper_budget|money) }}
+          {% call ui.kv('stop at cap') %}{{ ui.toggle(s.stop_at_budget, 'builds and repairs halt') }}{% endcall %}
+          {%- for agent, cost in spend_by_agent.items() %}
+          {% call ui.kv(agent ~ ' 30d') %}<span class="t-agent">{{ cost|money }}</span>{% endcall %}
+          {%- endfor %}
+        </div>
+      {% endcall %}
+    </div>
+
+    <div class="fill col">
+      {% call ui.panel() %}
+        {{ ui.phead('Engines & etiquette') }}
+        <div class="pbody">
+          {% call ui.kv('default engine') %}{{ ui.chip(s.default_engine, 'text-2') }}{% endcall %}
+          {% call ui.kv('headed browsers') %}{{ ui.toggle(s.headed, 'less detectable') }}{% endcall %}
+          {% call ui.kv('respect robots.txt') %}{{ ui.toggle(s.respect_robots, 'per scraper override') }}{% endcall %}
+          {{ ui.kv('global rate limit', '%s–%ss per request'|format(s.min_delay_s, s.max_delay_s)) }}
+          {{ ui.kv('max concurrent runs', s.max_concurrent_runs) }}
+          {{ ui.kv('run timeout', '%ss hard kill'|format(s.run_timeout_s)) }}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Solvers') }}
+        <div class="pbody">
+          {{ ui.kv('byparr sidecar', s.byparr_url or 'not configured') }}
+          {% call ui.kv('captcha vendor') %}{{ ui.chip(s.captcha_vendor, 'text-2') }}{% endcall %}
+          {% call ui.kv('auto-solve turnstile') %}{{ ui.toggle(s.auto_solve_turnstile,
+              'max %s per run'|format(s.max_captcha_spend_per_run|money)) }}{% endcall %}
+        </div>
+      {% endcall %}
+    </div>
+
+    <div class="fill col">
+      {% call ui.panel() %}
+        {{ ui.phead('Storage & retention') }}
+        <div class="pbody">
+          {{ ui.kv('database', s.db_path|string) }}
+          {{ ui.kv('records', '%s rows'|format(records|num)) }}
+          {{ ui.kv('keep artifacts', '%d days'|format(s.keep_artifacts_days)) }}
+          {{ ui.kv('keep traces', '%d days'|format(s.keep_traces_days)) }}
+          {{ ui.kv('keep audit', '%d days'|format(s.keep_audit_days)) }}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel() %}
+        {{ ui.phead('Secrets') }}
+        <div class="pbody">
+          {% call ui.kv('anthropic api key') %}
+            {{ ui.status('ok', 'set') if s.anthropic_api_key else ui.status('drift', 'missing') }}
+          {% endcall %}
+          {% call ui.kv('captcha key') %}
+            {{ ui.status('ok', 'set') if s.captcha_key else ui.status('drift', 'missing') }}
+          {% endcall %}
+          {% call ui.kv('encryption key') %}
+            {{ ui.status('ok', 'from env') if s.secret_key else ui.status('fail', 'not set') }}
+          {% endcall %}
+          {% call ui.kv('mcp bearer') %}
+            {{ ui.status('ok', 'set') if s.mcp_bearer_token else ui.status('drift', 'loopback only') }}
+          {% endcall %}
+          {% call ui.kv('audit entries') %}{{ ui.chip(audit_stats.entries|num, 'accent') }}{% endcall %}
+          <p class="pnote-plain">Secrets are encrypted at rest in SQLite with a key from the environment.
+             This is single-user grade, not a vault.</p>
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {% call ui.phead('This install') %}
+          {{ ui.btn('MCP console', 'ghost', 'term', '/mcp-console', small=true) }}
+        {% endcall %}
+        <div class="pbody">
+          {{ ui.kv('host', '%s:%d'|format(s.host, s.port)) }}
+          {{ ui.kv('data dir', s.data_dir|string) }}
+          {{ ui.kv('scrapers dir', s.scrapers_dir|string) }}
+          {% call ui.kv('mcp endpoint') %}<span class="mono" style="font-size:10.5px">{{ mcp_endpoint }}</span>{% endcall %}
+          {% call ui.kv('mcp tools') %}{{ ui.chip('%d tools · %d resources'|format(mcp_tools, mcp_resources), 'accent') }}{% endcall %}
+          {%- if not s.mcp_bearer_token %}
+          <p class="pnote-plain">{{ ui.icon('alert', 11) }} With no bearer token the MCP endpoint binds to
+             loopback only. Starting the app on another address raises InsecureBindError by design.</p>
+          {%- endif %}
+        </div>
+      {% endcall %}
+    </div>
+  </div>
+</div>
+{% endblock %}

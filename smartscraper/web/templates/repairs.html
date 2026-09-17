@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block content %}
+<div class="pad">
+
+  <div class="tiles">
+    {{ ui.tile('pending approval', counts.pending, 'awaiting you',
+               'warn' if counts.pending else 'text-3', ic='branch') }}
+    {{ ui.tile('approved 30d', counts.approved, 'promoted to active', 'ok', ic='check') }}
+    {{ ui.tile('rejected 30d', counts.rejected, 'candidate discarded',
+               'fail' if counts.rejected else 'text-3', ic='x') }}
+    {{ ui.tile('repair spend 30d', counts.spend|money, 'agent time',
+               'agent' if counts.spend else 'text-3', ic='zap') }}
+  </div>
+
+  {% call ui.panel() %}
+    {{ ui.phead('Pending candidates', '%d awaiting you'|format(pending|length)) }}
+    {% if pending %}
+    <div class="tbl-wrap">
+      <table class="tbl fixed">
+        {{ ui.thead([('', '84px', 'left'), ('Scraper', '170px', 'left'), ('Version', '110px', 'left'),
+                     ('Why', '420px', 'left'), ('Class', '110px', 'left'), ('Proposed', '96px', 'left'),
+                     ('', '190px', 'right')]) }}
+        <tbody>
+        {%- for r, name in pending %}
+          <tr>
+            <td>{{ ui.status('drift', 'pending') }}</td>
+            <td><a href="/scrapers/{{ r.scraper_id }}">{{ name }}</a></td>
+            <td>{{ ui.chip('→ v%d'|format(r.candidate_version), 'agent') }}</td>
+            <td class="t-text-2 trunc" title="{{ r.reason }}">{{ r.reason or 'no reason recorded' }}</td>
+            <td>{{ ui.chip('minor' if r.is_minor else 'major', 'ok' if r.is_minor else 'warn') }}</td>
+            <td class="t-text-3">{{ r.created_at|ago }}</td>
+            <td class="r">
+              <span class="rowacts">
+                {{ ui.btn('Review', 'solid', href='/repairs/%d'|format(r.id), small=true) }}
+                <form class="inline-form" method="post" action="/repairs/{{ r.id }}/reject">
+                  <input type="hidden" name="back" value="/repairs">
+                  {{ ui.iconbtn('x', 'Reject candidate v%d'|format(r.candidate_version), tone='fail', type='submit') }}
+                </form>
+              </span>
+            </td>
+          </tr>
+        {%- endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      {% call ui.empty('Nothing to approve', 'A repair candidate appears here when a run fails its own validation and the agent proposes a fix.', 'branch') %}
+        {{ ui.btn('Recent runs', 'primary', 'play', '/runs') }}
+      {% endcall %}
+    {% endif %}
+  {% endcall %}
+
+  {% call ui.panel(grow=true) %}
+    {{ ui.phead('History', 'decided candidates') }}
+    {% if history %}
+    <div class="tbl-wrap">
+      <table class="tbl fixed">
+        {{ ui.thead([('', '34px', 'left'), ('Scraper', '170px', 'left'), ('Version', '90px', 'left'),
+                     ('Change', '460px', 'left'), ('Decided by', '120px', 'left'), ('When', '110px', 'left')]) }}
+        <tbody>
+        {%- for r, name in history %}
+          <tr>
+            <td>{{ ui.status('ok' if r.status == 'approved' else 'fail', '') }}</td>
+            <td><a href="/scrapers/{{ r.scraper_id }}">{{ name }}</a></td>
+            <td>{{ ui.chip('v%d'|format(r.candidate_version), 'text-3') }}</td>
+            <td class="t-text-3 trunc" title="{{ r.reason }}">{{ r.reason or '—' }}</td>
+            <td>{{ ui.chip(r.decided_by or 'auto', 'agent' if (r.decided_by or 'auto') == 'auto' else 'text-3') }}</td>
+            <td class="t-text-3">{{ r.decided_at|ago if r.decided_at else r.created_at|ago }}</td>
+          </tr>
+        {%- endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="pbody"><p class="field-hint">No repair has been decided yet.</p></div>
+    {% endif %}
+  {% endcall %}
+
+</div>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% import "_ui.html" as ui with context %}
+<div id="activity" class="fill col" hx-get="/partials/activity" hx-trigger="every 10s" hx-swap="outerHTML">
+{% call ui.panel(grow=true) %}
+  {% call ui.phead('Live activity', activity|length ~ ' events') %}
+    {{ ui.iconbtn('refresh', 'Refresh the activity feed', cls='', type='button') }}
+  {% endcall %}
+  {% if activity %}
+  <div class="pscroll feed">
+    {%- for a in activity %}
+    <div class="feed-row">
+      <span class="feed-ts">{{ a.at|hhmm }}</span>
+      {{ ui.dot(a.kind) }}
+      <a class="feed-msg grow" href="{{ a.href }}">{{ a.text }}</a>
+    </div>
+    {%- endfor %}
+  </div>
+  {% else %}
+  <div class="pbody"><p class="field-hint">Nothing has happened yet. Runs, repairs and deliveries appear here as they land.</p></div>
+  {% endif %}
+{% endcall %}
+</div>

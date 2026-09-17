@@ -1,0 +1,80 @@
+{% import "_ui.html" as ui with context %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>{% block title %}{{ page_title|default('SmartScraper') }} · smartscraper{% endblock %}</title>
+<script>
+  // Runs before first paint so the chosen theme never flashes the other palette.
+  try {
+    var t = localStorage.getItem('ss-theme');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="app">
+
+<header class="topbar">
+  <a class="brand" href="/">
+    <span class="brand-mark" aria-hidden="true">{{ ui.icon('term', 11) }}</span>
+    <span class="brand-name">smartscraper</span>
+  </a>
+  <nav class="nav" aria-label="Primary">
+    {%- for name, href in nav %}
+    <a class="navlink{{ ' on' if name == active }}" href="{{ href }}"{% if name == active %} aria-current="page"{% endif %}>
+      {{ name }}
+      {%- if name == 'Repairs' and repairs_pending %}<span class="badge">{{ repairs_pending }}</span>{% endif -%}
+    </a>
+    {%- endfor %}
+  </nav>
+  <span class="spacer"></span>
+  <div class="topright">
+    <a class="topstat" href="/runs?status=running" title="Runs in progress">
+      <span class="t-accent" aria-hidden="true">◐</span>{{ running_count }} running
+    </a>
+    <span class="vr" aria-hidden="true"></span>
+    <a class="topstat" href="/settings" title="Agent spend, month to date">
+      {{ spend_mtd|money }} <span class="t-text-3">mtd</span>
+    </a>
+    <span class="vr" aria-hidden="true"></span>
+    <button class="iconbtn" type="button" id="theme-toggle" aria-label="Switch colour theme">
+      {{ ui.icon('sun', 14) }}
+    </button>
+  </div>
+</header>
+
+<div class="pagehead{{ '' if page_tabs else ' no-tabs' }}">
+  <div class="pagehead-bar">
+    <h1>{{ page_title|default('SmartScraper') }}</h1>
+    {%- if page_sub %}<span class="pagehead-sub">{{ page_sub }}</span>{% endif -%}
+    <span class="spacer"></span>
+    <div class="pagehead-actions">{% block actions %}{% endblock %}</div>
+  </div>
+  {%- if page_tabs %}
+  <nav class="tabs" aria-label="Section">
+    {%- for name, href, on in page_tabs %}
+    <a class="tab{{ ' on' if on }}" href="{{ href }}"{% if on %} aria-current="page"{% endif %}>{{ name }}</a>
+    {%- endfor %}
+  </nav>
+  {%- endif %}
+</div>
+
+<main id="main">
+{% block content %}{% endblock %}
+</main>
+
+</div>
+<script src="{{ url_for('static', path='/htmx.min.js') }}"></script>
+<script src="{{ url_for('static', path='/sse.js') }}"></script>
+<script src="{{ url_for('static', path='/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

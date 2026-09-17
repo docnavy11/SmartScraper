@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}
+  {{ ui.btn('Import YAML', 'ghost', 'download', '/scrapers/new?mode=import') }}
+  {{ ui.btn('New scraper', 'primary', 'plus', '/scrapers/new') }}
+{% endblock %}
+
+{% block content %}
+<div class="pad">
+
+  <form class="toolbar" method="get" action="/scrapers" role="search">
+    <div class="searchbox" style="width:250px">
+      {{ ui.icon('search', 13) }}
+      <label class="vh" for="scr-q">Search scrapers</label>
+      <input id="scr-q" name="q" type="text" placeholder="filter by name, url or tag" value="{{ q|default('', true) }}">
+    </div>
+    {{ ui.btn('Search', 'solid', type='submit') }}
+    <span class="spacer"></span>
+    {{ ui.btn('Coverage', 'ghost', 'shield', '/coverage') }}
+    {{ ui.btn('Audit', 'ghost', 'file', '/audit') }}
+  </form>
+
+  {% call ui.panel(grow=true) %}
+    {% call ui.phead('Scrapers', ('%d matching "%s"'|format(rows|length, q)) if q else ('%d total'|format(rows|length))) %}
+      {{ ui.btn('All runs', 'ghost', 'play', '/runs', small=true) }}
+    {% endcall %}
+
+    {% if rows %}
+    <div class="tbl-wrap">
+      <table class="tbl fixed">
+        {{ ui.thead([('', '38px', 'left'), ('Scraper', '200px', 'left'), ('Engine', '130px', 'left'),
+                     ('Schedule', '120px', 'left'), ('Last run', '96px', 'left'), ('Rows', '80px', 'right'),
+                     ('Δ', '70px', 'right'), ('Next', '86px', 'right'), ('Ver', '56px', 'left'),
+                     ('Spend 7d', '84px', 'right'), ('', '132px', 'right')]) }}
+        <tbody>
+        {%- for r in rows %}
+          {%- set s = r.scraper %}
+          <tr>
+            <td>
+              {%- if not s.enabled %}{{ ui.status('paused', '') }}
+              {%- elif r.last %}{{ ui.run_status(r.last.status, '') }}
+              {%- else %}{{ ui.status('queued', '') }}{% endif -%}
+            </td>
+            <td><a href="/scrapers/{{ s.id }}">{{ s.name }}</a></td>
+            <td>{{ ui.chip(r.last.engine_used if r.last and r.last.engine_used else 'auto', 'text-3') }}</td>
+            <td class="mono t-text-3" style="font-size:11px">{{ s.schedule or '—' }}</td>
+            <td class="mono {{ 't-accent' if r.last and r.last.status == 'running' else 't-text-2' }}"
+                style="font-size:11.5px">{{ r.last.created_at|ago if r.last else 'never' }}</td>
+            <td class="r mono {{ 't-text' if r.last and r.last.row_count else 't-text-3' }}">
+              {{ r.last.row_count|num if r.last else '—' }}</td>
+            <td class="r mono" style="font-size:11.5px">
+              {%- if r.delta is none %}<span class="t-text-3">—</span>
+              {%- else %}<span class="{{ 't-fail' if r.delta < -0.2 else ('t-ok' if r.delta > 0.01 else 't-text-3') }}">
+                {{ '%+.0f%%'|format(r.delta * 100) }}</span>{% endif -%}
+            </td>
+            {# No cron parser exists in the project, so the next fire time is not
+               computed. The schedule column already carries the expression. #}
+            <td class="r mono t-text-3" style="font-size:11.5px"
+                title="{{ 'Disabled' if not s.enabled else ('Scheduler not running: next fire time is not computed' if s.schedule else 'Manual only') }}">
+              {{ 'paused' if not s.enabled else ('scheduled' if s.schedule else 'manual') }}</td>
+            <td>{{ ui.chip('v%s'|format(r.version) if r.version else '—',
+                           'agent' if r.version_by in ('builder', 'repair') else 'text-3') }}</td>
+            <td class="r mono {{ 't-text-2' if r.spend7 else 't-text-3' }}" style="font-size:11.5px">{{ r.spend7|money }}</td>
+            <td class="r">
+              <span class="rowacts">
+                <form class="inline-form" method="post" action="/scrapers/{{ s.id }}/run">
+                  {{ ui.iconbtn('play', 'Run %s now'|format(s.name), type='submit') }}
+                </form>
+                {{ ui.iconbtn('code', 'Edit %s script'|format(s.name), '/scrapers/%d/script'|format(s.id)) }}
+                <form class="inline-form" method="post"
+                      action="/scrapers/{{ s.id }}/{{ 'disable' if s.enabled else 'enable' }}">
+                  <input type="hidden" name="back" value="/scrapers">
+                  {{ ui.iconbtn('pause' if s.enabled else 'play',
+                                ('Disable %s' if s.enabled else 'Enable %s')|format(s.name), type='submit') }}
+                </form>
+              </span>
+            </td>
+          </tr>
+        {%- endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="pfoot">
+      <span>{{ rows|length }} scrapers · {{ rows | selectattr('scraper.enabled') | list | length }} enabled</span>
+      <span class="spacer"></span>
+      {%- if custom_python %}
+      <a class="mono t-agent" style="font-size:11px" href="/audit">◆ {{ custom_python|length }} use custom_python</a>
+      {%- endif %}
+      {%- set awaiting = rows | sum(attribute='pending_repairs') %}
+      {%- if awaiting %}<span class="mono t-warn" style="font-size:11px">▲ {{ awaiting }} need approval</span>{% endif %}
+    </div>
+    {% else %}
+      {%- if q %}
+        {% call ui.empty('Nothing matches "%s"'|format(q), 'The filter looks at the name, the URL and the tags.', 'search') %}
+          {{ ui.btn('Clear filter', 'primary', 'x', '/scrapers') }}
+        {% endcall %}
+      {%- else %}
+        {% call ui.empty('No scrapers yet', 'An agent writes the first script. Give it a URL and say what you want extracted.', 'db') %}
+          {{ ui.btn('New scraper', 'primary', 'plus', '/scrapers/new') }}
+          {{ ui.btn('Import YAML', 'ghost', 'download', '/scrapers/new?mode=import') }}
+        {% endcall %}
+      {%- endif %}
+    {% endif %}
+  {% endcall %}
+
+</div>
+{% endblock %}

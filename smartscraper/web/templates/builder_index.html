@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}{{ ui.btn('New scraper', 'primary', 'plus', '/scrapers/new') }}{% endblock %}
+
+{% block content %}
+<div class="pad">
+  {% call ui.panel(grow=true) %}
+    {{ ui.phead('Builds', '%d'|format(jobs|length)) }}
+    <div class="pbody">
+      {%- for j in jobs %}
+      <a class="listrow" href="/builder/{{ j.id }}" style="text-decoration:none">
+        {{ ui.chip(j.status, 'ok' if j.status == 'done' else ('fail' if j.status == 'failed' else 'accent')) }}
+        <span class="t-mono grow trunc">{{ j.name or j.url }}</span>
+        <span class="t-mono t-text-3">{{ j.elapsed_s }}s</span>
+      </a>
+      {%- endfor %}
+      {%- if not jobs %}
+      <p class="field-hint">
+        No build has run since this process started. Builds are held in memory, so a restart clears
+        the list; what a build produced is a scraper and a YAML file, and those survive.
+      </p>
+      {%- endif %}
+    </div>
+  {% endcall %}
+</div>
+{% endblock %}

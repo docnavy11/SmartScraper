@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}
+  {{ ui.btn('New scraper', 'ghost', 'plus', '/scrapers/new') }}
+  {{ ui.btn('Scrapers', 'ghost', 'db', '/scrapers') }}
+{% endblock %}
+
+{% block content %}
+<div class="pad"
+     {% if not job.done %}hx-get="/builder/{{ job.id }}/card" hx-trigger="every 2s" hx-target="#build-card" hx-select="#build-card" hx-swap="outerHTML"{% endif %}>
+
+  <div id="build-card">
+  {% if job.status == 'done' %}
+    {% call ui.banner('ok', 'Built ' ~ (job.scraper_name or 'the scraper') ~ ' in ' ~ job.elapsed_s ~ 's. The test run returned ' ~ job.row_count ~ ' rows.') %}
+      {% if job.scraper_id %}{{ ui.smallbtn('Open it', 'accent', '/scrapers/' ~ job.scraper_id) }}{% endif %}
+    {% endcall %}
+  {% elif job.status == 'failed' %}
+    {% call ui.banner('fail', job.error or 'the build failed') %}
+      {{ ui.smallbtn('Try again', '', '/scrapers/new?url=' ~ job.url|urlencode ~ '&goal=' ~ job.goal|urlencode) }}
+    {% endcall %}
+
+    {% if job.hint %}
+      {% call ui.panel() %}
+        {{ ui.phead('What went wrong') }}
+        <div class="pbody">
+          <p class="field-hint" style="font-size:12px;line-height:1.6">{{ job.hint }}</p>
+        </div>
+      {% endcall %}
+    {% endif %}
+
+    {% if job.last_thought or job.final_text %}
+      {% call ui.panel() %}
+        {{ ui.phead('What the agent said', 'in its own words') }}
+        <div class="pbody">
+          {% if job.last_thought %}
+            <p class="field-hint" style="font-size:12px;line-height:1.6">{{ job.last_thought }}</p>
+          {% endif %}
+          {% if job.final_text and job.final_text != job.last_thought %}
+            <p class="field-hint" style="font-size:12px;line-height:1.6;margin-top:8px">{{ job.final_text }}</p>
+          {% endif %}
+          {% if job.transcript_path %}
+            {{ ui.kv('full transcript', job.transcript_path) }}
+          {% endif %}
+        </div>
+      {% endcall %}
+    {% endif %}
+  {% else %}
+    {% call ui.banner('drift', 'Building. This takes a few minutes: a browser opens, the agent probes selectors, writes a script and test-runs it. You can leave this page; it keeps going.') %}
+      <span class="t-mono t-text-3">{{ job.elapsed_s }}s</span>
+    {% endcall %}
+  {% endif %}
+
+  <div class="row stack-lg fill">
+
+    {% call ui.panel(grow=true, cls='fill') %}
+      {% call ui.phead('Progress', job.last_stage) %}
+        {% if job.done %}{{ ui.chip(job.status, 'ok' if job.status == 'done' else 'fail') }}
+        {% else %}{{ ui.chip('running', 'accent') }}{% endif %}
+      {% endcall %}
+      <div class="pbody">
+        {%- for e in job.events %}
+        <div class="listrow">
+          <span class="t-mono t-text-3" style="width:64px;flex-shrink:0">{{ e.clock }}</span>
+          <span class="t-mono grow trunc">{{ e.stage }}</span>
+          <span class="t-mono t-text-3 trunc" style="max-width:48%">{{ e.detail }}</span>
+        </div>
+        {%- endfor %}
+        {%- if not job.events %}
+          <p class="field-hint">Waiting for the first step.</p>
+        {%- endif %}
+      </div>
+    {% endcall %}
+
+    <div class="side col">
+      {% call ui.panel() %}
+        {{ ui.phead('What it was asked for') }}
+        <div class="pbody">
+          {{ ui.kv('url', job.url) }}
+          {{ ui.kv('goal', job.goal) }}
+          {{ ui.kv('name', job.name or 'derived from the url') }}
+          {{ ui.kv('elapsed', job.elapsed_s ~ 's') }}
+          {% if job.cost_usd %}{{ ui.kv('spent', '$%.4f'|format(job.cost_usd)) }}{% endif %}
+        </div>
+      {% endcall %}
+
+      {% if job.capability_gaps %}
+      {% call ui.panel() %}
+        {{ ui.phead('Could not interact', '%d'|format(job.capability_gaps|length)) }}
+        <div class="pbody">
+          {%- for gap in job.capability_gaps %}
+            <div class="listrow"><span class="t-mono grow">{{ gap }}</span></div>
+          {%- endfor %}
+          <p class="field-hint">This engine cannot do these. The scraper probably needs a browser rung.</p>
+        </div>
+      {% endcall %}
+      {% endif %}
+    </div>
+  </div>
+  </div>
+
+</div>
+{% endblock %}

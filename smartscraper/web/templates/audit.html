@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block content %}
+<div class="pad">
+
+  <div class="toolbar">
+    {{ ui.btn('Everyone', 'solid' if not actor else 'ghost', 'filter', '/audit') }}
+    {{ ui.btn('You', 'solid' if actor == 'you' else 'ghost', href='/audit?actor=you') }}
+    {{ ui.btn('System', 'solid' if actor == 'system' else 'ghost', href='/audit?actor=system') }}
+    <span class="spacer"></span>
+    {{ ui.chip('append only', 'text-3') }}
+  </div>
+
+  <div class="row stack-lg fill">
+
+    {% call ui.panel(grow=true, cls='fill') %}
+      {{ ui.phead('Audit log', '%s entries · kept %d days'|format(stats.entries|num, settings.keep_audit_days)) }}
+      {% if entries %}
+      <div class="tbl-wrap">
+        <table class="tbl fixed">
+          {{ ui.thead([('When', '120px', 'left'), ('Actor', '130px', 'left'), ('Action', '180px', 'left'),
+                       ('Object', '240px', 'left'), ('Detail', '360px', 'left')]) }}
+          <tbody>
+          {%- for e in entries %}
+            <tr>
+              <td class="t-text-3">{{ e.created_at|dt('%d %b %H:%M') }}</td>
+              <td>{{ ui.chip(e.actor, 'agent' if 'agent' in e.actor else ('accent' if e.actor == 'you' else 'text-3')) }}</td>
+              <td class="t-text-2">{{ e.action }}</td>
+              <td class="trunc">{{ e.object_ref or e.object_type or '—' }}</td>
+              <td class="t-text-3 trunc" title="{{ e.detail }}">{{ e.detail }}</td>
+            </tr>
+          {%- endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="pfoot">showing {{ entries|length }} of {{ stats.entries|num }} · entries are never edited or deleted</div>
+      {% else %}
+        {% call ui.empty('Nothing logged yet', 'Every approval, acknowledgement and agent decision lands here as it happens.', 'file') %}{% endcall %}
+      {% endif %}
+    {% endcall %}
+
+    <div class="side col">
+      {% call ui.panel() %}
+        {% call ui.phead('custom_python in use', 'unsandboxed') %}
+          {{ ui.chip('%d versions'|format(custom_python|length), 'agent' if custom_python else 'text-3') }}
+        {% endcall %}
+        <div class="pbody">
+          {%- if custom_python %}
+            {%- for v, name in custom_python %}
+            <div class="col" style="gap:3px;padding:8px 0;border-bottom:1px solid var(--line)">
+              <div class="toolbar" style="gap:7px">
+                <span class="t-agent mono" style="font-size:10px">◆</span>
+                <a class="mono" style="font-size:11.5px" href="/scrapers/{{ v.scraper_id }}/script?version={{ v.version }}">{{ name }}</a>
+                {{ ui.chip('v%d'|format(v.version), 'text-3') }}
+                {{ ui.chip(v.status, 'ok' if v.status == 'active' else 'text-3') }}
+              </div>
+              <span class="field-hint">{{ v.change_summary or 'no summary' }}</span>
+              <span class="ver-when">by {{ v.created_by }} · {{ v.created_at|ago }}</span>
+            </div>
+            {%- endfor %}
+          {%- else %}
+            <p class="field-hint">No version contains a custom_python step.</p>
+          {%- endif %}
+          <p class="pnote-plain">{{ ui.icon('alert', 11) }} These steps run as your user inside the run
+             subprocess, with no sandbox beyond its timeout. Every change to one needs approval regardless of
+             the scraper's promotion policy.</p>
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {{ ui.phead('Retention & integrity') }}
+        <div class="pbody">
+          {{ ui.kv('entries', stats.entries|num) }}
+          {{ ui.kv('oldest', stats.oldest|ago if stats.oldest else 'none') }}
+          {{ ui.kv('keep for', '%d days'|format(settings.keep_audit_days)) }}
+          {% call ui.kv('secret reads 30d') %}
+            <span class="{{ 't-warn' if stats.secret_reads else 't-text-3' }}">{{ stats.secret_reads }}</span>
+          {% endcall %}
+        </div>
+      {% endcall %}
+    </div>
+  </div>
+</div>
+{% endblock %}

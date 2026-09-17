@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}
+  {{ ui.btn('MCP console', 'ghost', 'term', '/mcp-console') }}
+{% endblock %}
+
+{% block content %}
+<div class="pad">
+  <div class="row stack-lg fill">
+    <div class="fill col">
+
+      {% call ui.panel() %}
+        {{ ui.phead('Targets', '%d configured'|format(targets|length)) }}
+        {% if targets %}
+        <div class="tbl-wrap">
+          <table class="tbl fixed">
+            {{ ui.thead([('', '34px', 'left'), ('Type', '96px', 'left'), ('Destination', '300px', 'left'),
+                         ('Scraper', '160px', 'left'), ('Format', '120px', 'left'), ('When', '110px', 'left'),
+                         ('', '120px', 'right')]) }}
+            <tbody>
+            {%- for t, name in targets %}
+              <tr>
+                <td>{{ ui.status('ok' if t.enabled else 'paused', '') }}</td>
+                <td>{{ ui.chip(t.kind, 'accent' if t.kind == 'mcp' else 'text-3') }}</td>
+                <td class="t-text-2 trunc">
+                  {{ t.config.get('url') or t.config.get('path') or t.config.get('bucket') or t.config.get('tool') or '—' }}</td>
+                <td>{% if name %}<a href="/scrapers/{{ t.scraper_id }}">{{ name }}</a>{% else %}<span class="t-text-3">all scrapers</span>{% endif %}</td>
+                <td>{{ ui.chip(t.fmt, 'text-3') }}</td>
+                <td class="t-text-3">{{ 'failures only' if t.only_on_failure else 'every run' }}</td>
+                <td class="r">
+                  <form class="inline-form" method="post" action="/delivery/targets/{{ t.id }}/test">
+                    {{ ui.btn('Test', 'ghost', 'send', small=true, type='submit') }}
+                  </form>
+                </td>
+              </tr>
+            {%- endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+          {% call ui.empty('No delivery targets', 'Rows are stored and readable over MCP without a target. Add one when something downstream needs a push.', 'send') %}{% endcall %}
+        {% endif %}
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {% call ui.phead('Delivery log', '%d recent'|format(deliveries|length)) %}
+          {%- set failed = deliveries | selectattr('0.status', 'ne', 'sent') | list | length %}
+          {{ ui.chip('failed %d'|format(failed), 'fail' if failed else 'text-3') }}
+        {% endcall %}
+        {% if deliveries %}
+        <div class="tbl-wrap">
+          <table class="tbl fixed">
+            {{ ui.thead([('', '34px', 'left'), ('Run', '80px', 'left'), ('Target', '200px', 'left'),
+                         ('Rows', '90px', 'right'), ('Attempts', '90px', 'right'), ('When', '120px', 'left'),
+                         ('Error', '300px', 'left')]) }}
+            <tbody>
+            {%- for d, t in deliveries %}
+              <tr>
+                <td>{{ ui.status('ok' if d.status == 'sent' else 'fail', '') }}</td>
+                <td><a href="/runs/{{ d.run_id }}">#{{ d.run_id }}</a></td>
+                <td>{{ ui.chip(t.kind if t else 'gone', 'accent' if t and t.kind == 'mcp' else 'text-3') }}</td>
+                <td class="r">{{ d.rows_sent|num }}</td>
+                <td class="r {{ 't-fail' if d.attempts > 1 else 't-text-3' }}">{{ d.attempts }}</td>
+                <td class="t-text-3">{{ d.created_at|ago }}</td>
+                <td class="t-fail trunc" title="{{ d.last_error or '' }}">{{ d.last_error or '' }}</td>
+              </tr>
+            {%- endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+          <div class="pbody"><p class="field-hint">Nothing has been delivered yet.</p></div>
+        {% endif %}
+      {% endcall %}
+
+    </div>
+
+    <div class="side col">
+      {% call ui.panel() %}
+        {% call ui.phead('MCP server', 'streamable http') %}
+          {%- if mcp_mounted %}{{ ui.status('ok', 'listening') }}
+          {%- else %}{{ ui.status('fail', 'not mounted') }}{% endif %}
+        {% endcall %}
+        <div class="pbody-lg">
+          <div class="searchbox">
+            <span class="mono trunc grow" style="font-size:11px">{{ mcp_endpoint }}</span>
+          </div>
+          {% call ui.kv('auth') %}
+            {%- if settings.mcp_bearer_token %}{{ ui.chip('bearer token set', 'ok') }}
+            {%- else %}{{ ui.chip('none · loopback only', 'warn') }}{% endif %}
+          {% endcall %}
+          {% call ui.kv('stdio entry') %}<span class="mono" style="font-size:10.5px">smartscraper mcp --stdio</span>{% endcall %}
+          {% call ui.kv('resources') %}{{ ui.chip('%d templates'|format(templates|length), 'text-2') }}{% endcall %}
+          {%- if not settings.mcp_bearer_token %}
+          <p class="field-hint">Without SS_MCP_BEARER_TOKEN the endpoint refuses to bind to anything but
+             loopback, so an unauthenticated server is never exposed to the network.</p>
+          {%- endif %}
+        </div>
+      {% endcall %}
+
+      {% call ui.panel(grow=true) %}
+        {% call ui.phead('Tools exposed', '%d'|format(tools|length)) %}
+          {{ ui.btn('Console', 'ghost', 'term', '/mcp-console', small=true) }}
+        {% endcall %}
+        <div class="pbody">
+          {%- for t in tools %}
+          <div class="kv">
+            <span class="kv-k t-accent" style="width:140px">{{ t.name }}</span>
+            <span class="kv-v t-text-3" style="text-align:left">{{ t.summary }}</span>
+          </div>
+          {%- else %}
+          <p class="field-hint">The tool list could not be read from the MCP server.</p>
+          {%- endfor %}
+          {%- if templates %}
+          <p class="pnote-plain">Resources: {% for r in templates %}<span class="mono t-accent">{{ r.uri }}</span>{{ ', ' if not loop.last }}{% endfor %}</p>
+          {%- endif %}
+        </div>
+      {% endcall %}
+    </div>
+  </div>
+</div>
+{% endblock %}

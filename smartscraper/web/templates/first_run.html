@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% import "_ui.html" as ui with context %}
+
+{% block actions %}{{ ui.btn('New scraper', 'primary', 'plus', '/scrapers/new') }}{% endblock %}
+
+{% block content %}
+<div class="pad">
+
+  <div class="tiles">
+    {{ ui.tile('scrapers', '0', 'none yet', 'text-3', ic='db') }}
+    {{ ui.tile('runs today', '0', 'nothing scheduled', 'text-3', ic='play') }}
+    {{ ui.tile('rows today', '0', '', 'text-3', ic='file') }}
+    {{ ui.tile('pending repairs', '0', '', 'text-3', ic='branch') }}
+    {{ ui.tile('spend mtd', spend_mtd|money, 'budget %s'|format(settings.monthly_budget|money), 'text-3', ic='zap') }}
+  </div>
+
+  {% call ui.panel(grow=true) %}
+    {{ ui.phead('Get started', 'nothing has run yet') }}
+    <div class="empty">
+      <span class="empty-mark">{{ ui.icon('term', 19) }}</span>
+      <h2>No scrapers yet</h2>
+      <p>An agent writes the script once. After that the script runs on a schedule with no model in
+         the loop, and the agent is only called back when a run fails its own validation.</p>
+
+      <div class="cards">
+        <a class="card" href="/scrapers/new">
+          <span class="card-mark">{{ ui.icon('zap', 15) }}</span>
+          <h3>Describe a page</h3>
+          <p>Give a URL and say what you want in plain language. The builder explores it and writes the script.</p>
+          <span class="card-cta">Start builder {{ ui.icon('chev', 11) }}</span>
+        </a>
+        <a class="card" href="/scrapers/new?mode=import">
+          <span class="card-mark">{{ ui.icon('file', 15) }}</span>
+          <h3>Import a YAML script</h3>
+          <p>Paste or drop a script you already have. It is validated against the step schema before it runs.</p>
+          <span class="card-cta">Import {{ ui.icon('chev', 11) }}</span>
+        </a>
+        <a class="card" href="/scrapers/new?mode=example">
+          <span class="card-mark">{{ ui.icon('db', 15) }}</span>
+          <h3>Start from an example</h3>
+          <p>Three worked scrapers: a product grid, a paginated table and a login-gated list.</p>
+          <span class="card-cta">Browse examples {{ ui.icon('chev', 11) }}</span>
+        </a>
+      </div>
+
+      <div class="steps-explain">
+        <div>{{ ui.label('Build once') }}<span class="d">The agent probes selectors and writes a versioned YAML step list.</span></div>
+        <div>{{ ui.label('Run cheaply') }}<span class="d">The runner executes that script. No tokens are spent on a normal run.</span></div>
+        <div>{{ ui.label('Validate') }}<span class="d">Schema, row count band and null rates decide whether a run passed.</span></div>
+        <div>{{ ui.label('Repair') }}<span class="d">A failure calls the agent back with the broken page and the report.</span></div>
+      </div>
+    </div>
+  {% endcall %}
+
+</div>
+{% endblock %}
