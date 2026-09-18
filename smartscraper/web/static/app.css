@@ -359,6 +359,23 @@ main { flex: 1 1 auto; min-height: 0; min-width: 0; display: flex; flex-directio
   min-height: 0;
 }
 
+
+/* A page whose content is a form rather than a dashboard is naturally taller
+   than the window. It should scroll, not divide the viewport between panels and
+   clip them: the settings page grew when its fields became editable and started
+   cutting off the last link in a column at 1440x900. Width sharing inside a row
+   is untouched; only the vertical division stops. */
+.pad.flow { flex: 0 0 auto; }
+.pad.flow > .row,
+.pad.flow > .fill,
+.pad.flow > .panel { flex: 0 0 auto; flex-basis: auto; min-height: 0; }
+
+/* And nothing inside such a page shrinks below its own contents. A panel two
+   columns deep still divides whatever height its column was given, which is how
+   a link at the bottom of the settings page disappeared at 1440x900. */
+.pad.flow .panel,
+.pad.flow .panel.grow { min-height: min-content; }
+
 .row { display: flex; gap: var(--gap); min-width: 0; }
 .row-wrap { flex-wrap: wrap; }
 .col { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }

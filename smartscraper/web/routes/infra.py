@@ -171,7 +171,14 @@ async def audit(request: Request, session: AsyncSession = DB, actor: str | None 
 # ----------------------------------------------------------------- settings
 @router.get("/settings")
 async def settings_page(request: Request, session: AsyncSession = DB):
+    from smartscraper import settings_store
+
+    await settings_store.load(session)      # whatever another process saved
     s = get_settings()
+    fields = settings_store.current_view()
+    groups: dict[str, list] = {}
+    for f in fields:
+        groups.setdefault(f["group"], []).append(f)
     return await render(
         request,
         session,
@@ -181,6 +188,10 @@ async def settings_page(request: Request, session: AsyncSession = DB):
             "page_sub": "smartscraper 0.1.0 · python 3.12 · sqlite",
             "active": "Settings",
             "s": s,
+            "groups": groups,
+            "fixed": sorted(settings_store.FIXED),
+            "saved": request.query_params.get("saved"),
+            "error": request.query_params.get("error"),
             "spend_by_agent": await repo.spend_by_agent(session, days=30),
             "records": await repo.count_records(session),
             "audit_stats": await queries.audit_stats(session),
@@ -193,13 +204,43 @@ async def settings_page(request: Request, session: AsyncSession = DB):
 
 @router.post("/settings")
 async def settings_save(request: Request, session: AsyncSession = DB):
-    """TODO(config): settings are read-only in the UI.
+    """Persist the editable settings and apply them to this process at once.
 
-    smartscraper/config.py loads from the environment and a .env file, and this
-    layer does not own that file. The form posts here so the button is real; it
-    saves nothing and says so on the screen.
+    An empty box clears the override rather than storing an empty value, so a
+    field can always be handed back to whatever the environment says.
     """
-    return RedirectResponse("/settings?saved=0", status_code=SEE_OTHER)
+    from urllib.parse import quote_plus
+
+    from smartscraper import settings_store
+
+    form = await request.form()
+    # An unchecked box sends nothing, so "absent" has to mean false. That is only
+    # safe for boxes the form actually rendered: without this marker a partial
+    # post silently switched off every flag on the page, including the budget
+    # guard, which is exactly the kind of change nobody would think to look for.
+    present = {n for n in str(form.get("_present", "")).split(",") if n}
+
+    changes: dict[str, object] = {}
+    bad: list[str] = []
+    for name in settings_store.EDITABLE:
+        if settings_store.field_type(name) == "bool":
+            if name in present:
+                changes[name] = name in form
+            continue
+        if name not in form:
+            continue
+        try:
+            changes[name] = settings_store.coerce(name, str(form[name]))
+        except ValueError:
+            bad.append(f"{name}: {form[name]!r} is not a number")
+
+    if bad:
+        return RedirectResponse(f"/settings?error={quote_plus('; '.join(bad))}", status_code=SEE_OTHER)
+
+    applied, rejected = await settings_store.save(session, changes)
+    if rejected:
+        return RedirectResponse(f"/settings?error={quote_plus('; '.join(rejected))}", status_code=SEE_OTHER)
+    return RedirectResponse(f"/settings?saved={len(applied)}", status_code=SEE_OTHER)
 
 
 # ------------------------------------------------------------ builder live

@@ -257,6 +257,23 @@ class Secret(Base, TS):
     last_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
 
+class Setting(Base, TS):
+    """One setting overridden at runtime.
+
+    `.env` and the environment stay the place for secrets and for anything that
+    is needed before a database exists. Everything else is editable here, so a
+    budget or a model choice does not require editing a file and restarting.
+    The value is stored as JSON so a bool stays a bool.
+    """
+
+    __tablename__ = "setting"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    value: Mapped[dict] = mapped_column(JSON)          # {"v": <the value>}
+    updated_by: Mapped[str] = mapped_column(String(40), default="you")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class AuditEntry(Base, TS):
     """Append only. Never updated, never deleted before retention."""
 

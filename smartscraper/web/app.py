@@ -65,6 +65,17 @@ def create_app(
         if create_schema:
             async with eng.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
+        # Settings saved in the database override the environment. Loaded before the
+        # first request, and on both paths below, so a value edited in the UI is
+        # still in effect after a restart.
+        try:
+            from smartscraper import settings_store
+
+            async with app.state.sessionmaker() as _s:
+                await settings_store.load(_s)
+        except Exception:
+            log.exception("could not load settings overrides; using the environment")
+
         if mcp_asgi is None:
             yield
             return

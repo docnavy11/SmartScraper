@@ -7,12 +7,84 @@
 {% endblock %}
 
 {% block content %}
-<div class="pad">
+<form class="pad flow" method="post" action="/settings">
 
-  {% call ui.banner('drift', 'Settings are read-only here. smartscraper/config.py loads them from the environment and .env, and the web layer does not own that file.') %}
-  {% endcall %}
+  {% if error %}
+    {% call ui.banner('fail', error) %}{% endcall %}
+  {% elif saved is not none %}
+    {% if saved|int > 0 %}
+      {% call ui.banner('ok', saved ~ ' setting' ~ ('' if saved|int == 1 else 's') ~ ' saved and in effect now. No restart needed.') %}
+        {{ ui.smallbtn('See it in the audit log', '', '/audit') }}
+      {% endcall %}
+    {% else %}
+      {% call ui.banner('drift', 'Nothing changed.') %}{% endcall %}
+    {% endif %}
+  {% endif %}
+
+  <input type="hidden" name="_present"
+         value="{{ groups.values()|map('map', attribute='name')|map('join', ',')|join(',') }}">
+
+  <div class="toolbar">
+    <span class="t-text-3 t-mono" style="font-size:11px">
+      Saved here, these override the environment and take effect immediately. Clear a box to hand
+      the value back to <span class="t-mono">.env</span>.
+    </span>
+    <span class="spacer"></span>
+    {{ ui.btn('Save changes', 'primary', 'check', type='submit') }}
+  </div>
+
+  <div class="row row-wrap fill">
+    {%- for group, fields in groups.items() %}
+    <div class="fill col" style="min-width:300px">
+      {% call ui.panel() %}
+        {{ ui.phead(group, '%d'|format(fields|length)) }}
+        <div class="pbody-lg" style="gap:12px">
+          {%- for f in fields %}
+          <div class="col" style="gap:4px">
+            <label class="field-label" for="set-{{ f.name }}">
+              {{ f.name }}
+              {%- if f.overridden %} {{ ui.chip('overridden', 'accent') }}{% endif %}
+            </label>
+            {%- if f.type == 'bool' %}
+              <label class="row" style="gap:8px;align-items:center;cursor:pointer">
+                <input type="checkbox" id="set-{{ f.name }}" name="{{ f.name }}" {% if f.value %}checked{% endif %}>
+                <span class="t-mono t-text-2" style="font-size:11.5px">{{ 'on' if f.value else 'off' }}</span>
+              </label>
+            {%- else %}
+              <input class="input" id="set-{{ f.name }}" name="{{ f.name }}"
+                     type="{{ 'password' if f.secret else 'text' }}"
+                     value="{{ '' if f.secret and f.value else f.value }}"
+                     placeholder="{{ 'set, leave blank to keep' if f.secret and f.value else 'from .env' }}"
+                     {% if f.type in ('int', 'float') %}inputmode="decimal"{% endif %}>
+            {%- endif %}
+            {%- if f.help %}<span class="field-hint">{{ f.help }}</span>{% endif %}
+          </div>
+          {%- endfor %}
+        </div>
+      {% endcall %}
+    </div>
+    {%- endfor %}
+
+    <div class="fill col" style="min-width:300px">
+      {% call ui.panel() %}
+        {{ ui.phead('Set in the environment only', '%d'|format(fixed|length)) }}
+        <div class="pbody">
+          {%- for name in fixed %}
+          <div class="listrow"><span class="t-mono grow">{{ name }}</span></div>
+          {%- endfor %}
+          <p class="pnote-plain">
+            These are not editable here for two reasons, neither of them about which module owns
+            which file. A value read once at process start cannot usefully change while the process
+            runs, and a secret should not travel through a browser form. Edit
+            <span class="t-mono">.env</span> and restart.
+          </p>
+        </div>
+      {% endcall %}
+    </div>
+  </div>
 
   <div class="row stack-lg fill">
+
 
     <div class="fill col">
       {% call ui.panel() %}
@@ -120,5 +192,5 @@
       {% endcall %}
     </div>
   </div>
-</div>
+</form>
 {% endblock %}

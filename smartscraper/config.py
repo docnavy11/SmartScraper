@@ -119,6 +119,29 @@ class Settings(BaseSettings):
             p.mkdir(parents=True, exist_ok=True)
 
 
+# Runtime overrides, loaded from the `setting` table at startup and refreshed
+# whenever one is saved. Kept as a plain dict so `get_settings` stays
+# synchronous: every caller in the project already depends on that.
+_OVERRIDES: dict[str, object] = {}
+
+
+def set_overrides(values: dict[str, object]) -> None:
+    """Replace the override set and invalidate the cached Settings."""
+    global _OVERRIDES
+    _OVERRIDES = dict(values)
+    get_settings.cache_clear()
+
+
+def current_overrides() -> dict[str, object]:
+    return dict(_OVERRIDES)
+
+
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    """Environment and `.env` first, then whatever the database overrides.
+
+    Precedence is deliberate: a value edited in the UI wins, because that is the
+    more recent and more deliberate act. Anything not overridden falls back to
+    the environment, which is what a fresh install and every test see.
+    """
+    return Settings(**_OVERRIDES)

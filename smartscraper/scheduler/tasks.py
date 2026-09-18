@@ -182,8 +182,34 @@ async def _kill(proc: asyncio.subprocess.Process) -> None:
             await asyncio.wait_for(proc.wait(), timeout=KILL_GRACE_S)
 
 
+#: Runs executing in this process, by run id. The web UI dispatches runs in
+#: process, so a cancel from the browser reaches the child through here rather
+#: than waiting for the run's own timeout.
+_LIVE: dict[int, asyncio.subprocess.Process] = {}
+
+
+def is_live(run_id: int) -> bool:
+    return run_id in _LIVE
+
+
+async def cancel(run_id: int) -> bool:
+    """Signal a running child. Returns whether there was one to signal.
+
+    Kills the process group, not just the Python parent: the runner spawns a
+    browser, and killing only the parent leaves Chromium holding the profile
+    lock.
+    """
+    proc = _LIVE.get(run_id)
+    if proc is None or proc.returncode is not None:
+        return False
+    log.info("cancelling run %s (pid %s)", run_id, proc.pid)
+    await _kill(proc)
+    return True
+
+
 async def execute_subprocess(
     command: list[str], log_path: Path, *, timeout_s: float, cwd: Path | None = None,
+    run_id: int | None = None,
 ) -> RunResult:
     """Run the child, stream its output into ``log_path``, enforce the timeout."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -205,6 +231,8 @@ async def execute_subprocess(
             return RunResult(returncode=None, lines=[], raw=[f"{type(exc).__name__}: {exc}"],
                              timed_out=False, spawn_error=f"{type(exc).__name__}: {exc}")
 
+        if run_id is not None:
+            _LIVE[run_id] = proc
         pumps = [
             asyncio.create_task(_pump(proc.stdout, fh, lines, raw)),
             asyncio.create_task(_pump(proc.stderr, fh, lines, raw, is_stderr=True)),
@@ -215,6 +243,8 @@ async def execute_subprocess(
             timed_out = True
             await _kill(proc)
         finally:
+            if run_id is not None:
+                _LIVE.pop(run_id, None)
             # Drain whatever the child already wrote; never wait on it forever.
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(asyncio.gather(*pumps, return_exceptions=True), timeout=5.0)
@@ -416,7 +446,7 @@ async def run_scraper_now(
         log_path = Path(run.log_path)
 
     log.info("run %s: %s", run_id, " ".join(cmd))
-    result = await execute_subprocess(cmd, log_path, timeout_s=hard_timeout)
+    result = await execute_subprocess(cmd, log_path, timeout_s=hard_timeout, run_id=run_id)
 
     async with get_session() as s:
         run = await repo.get_run(s, run_id)

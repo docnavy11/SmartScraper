@@ -121,18 +121,31 @@ async def rerun(session: AsyncSession, runs: list[Run]) -> list[Run]:
 
 
 async def cancel_run(session: AsyncSession, run: Run) -> Run:
-    """Mark a run cancelled.
+    """Stop a run, and actually stop it.
 
-    TODO(runner): this only writes the row. The runner subprocess owning the
-    browser is not signalled, so a truly running job keeps going until its own
-    timeout. smartscraper/runner/ needs a cancel channel (pid file or a
-    cancellation flag the step loop checks).
+    The run executes as a subprocess of this process, so the scheduler can
+    signal its whole process group. Killing the group rather than the Python
+    parent matters: the runner spawns a browser, and killing only the parent
+    leaves Chromium behind holding the profile lock.
+
+    A run dispatched by a separate worker is not reachable from here. Its row is
+    still marked cancelled, and the detail line says the child was not signalled,
+    so the record does not claim more than happened.
     """
+    signalled = False
+    try:
+        from smartscraper.scheduler.tasks import cancel as cancel_child
+
+        signalled = await cancel_child(run.id)
+    except Exception:
+        log.exception("could not signal the child of run %s", run.id)
+
     run.status = RunStatus.CANCELLED
     run.finished_at = datetime.now(UTC)
     await repo.log(
         session, actor=ACTOR, action="cancelled run", object_type="run", object_ref=f"#{run.id}",
-        detail="from the live run view",
+        detail="from the live run view; child signalled" if signalled
+        else "from the live run view; no child of this process to signal",
     )
     return run
 
@@ -275,7 +288,15 @@ async def test_target(session: AsyncSession, target_id: int) -> dict[str, object
 
 
 async def relogin_profile(session: AsyncSession, profile_id: int) -> None:
-    """TODO(profiles): no-op. Needs profiles.py to launch a headed browser."""
+    """Not implemented, and not for an ownership reason.
+
+    Signing in is interactive: someone has to type a password and, for most of
+    these sites, a second factor. That needs a browser a person can see, and
+    this host has no display, which is also why `headed_effective` turns headed
+    off here. The workable shape is a local command that opens a headed browser
+    on the operator's own machine and writes the storage state back, not a
+    button on a page served from a headless server.
+    """
     log.warning("relogin_profile is a no-op for profile %s", profile_id)
 
 

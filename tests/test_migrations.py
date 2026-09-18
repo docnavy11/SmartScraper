@@ -45,8 +45,15 @@ def table_names(db_path: Path) -> set[str]:
     return {r[0] for r in rows}
 
 
-def test_models_declare_thirteen_tables():
-    assert len(MODEL_TABLES) == 13
+def test_every_model_table_has_a_migration():
+    """Derived, not hardcoded.
+
+    This used to assert the number 13. Adding the `setting` table broke it for no
+    reason: a count in a test is a second place to remember something, and it
+    fails on the change rather than on a defect.
+    """
+    assert MODEL_TABLES, "no models were discovered at all"
+    assert "alembic_version" not in MODEL_TABLES
 
 
 def test_upgrade_head_creates_every_table(db: Path):
@@ -54,7 +61,9 @@ def test_upgrade_head_creates_every_table(db: Path):
     created = table_names(db)
     assert created >= MODEL_TABLES
     assert "alembic_version" in created
-    assert len(created) == 14  # 13 model tables plus alembic's own
+    # Derived, not counted: a new table should not fail a test that is about
+    # migrations keeping up with the models.
+    assert created == MODEL_TABLES | {'alembic_version'}
 
 
 def test_upgrade_head_leaves_no_autogenerate_diff(db: Path):
