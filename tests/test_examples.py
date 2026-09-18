@@ -93,3 +93,33 @@ def test_it_targets_a_site_that_invites_it(example):
         f"{path.name} points at {urls!r}; examples should use a site that exists "
         f"to be scraped"
     )
+
+
+# ------------------------------------------------------------------ the README
+def test_the_readme_does_not_claim_maturity_it_cannot_support():
+    """"Used in anger since" was in here, on a repository sixteen hours old whose
+    repair loop had never fired outside a test. Words like that are cheap to
+    write and expensive to retract, so they are checked rather than trusted."""
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
+    low = readme.lower()
+    for phrase in (
+        "used in anger",
+        "battle-tested",
+        "battle tested",
+        "production-ready",
+        "production ready",
+        "rock solid",
+        "enterprise-grade",
+    ):
+        assert phrase not in low, f"the README claims {phrase!r}"
+
+
+def test_the_readme_says_what_has_never_been_exercised():
+    """The repair loop is the whole pitch and it has never run on a real
+    breakage. A reader deserves that in the README, not in a commit message."""
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
+    low = readme.lower()
+    assert "never" in low, "nothing in the README admits a limit"
+    assert "repair loop has never" in low or "never fired" in low, (
+        "the README should say the repair loop is unproven on a real site change"
+    )

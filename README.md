@@ -117,12 +117,31 @@ challenge pages.
 
 ## Status
 
-Young. Built quickly, then hardened by using it. The test suite is green, and the
-parts that matter most were verified by running them rather than by asserting
-them: a scraper built for a site that refuses headless Chromium, a
-run with a third of its prices missing correctly held back from delivery, and
-every control on every screen reachable at five viewport sizes.
+Sixteen hours old at the time of writing. Treat it accordingly.
 
-Unfinished pieces are named rather than hidden: two screens return an honest "not
-built" page, re-login needs a browser a person can see, and there is no cron
-parser so the schedule column shows the expression rather than a countdown.
+**Exercised against live sites.** The builder has written working scrapers for
+four real pages, including one that serves headless Chromium an HTTP 403 and a
+bot-block interstitial. Each was re-run deterministically afterwards and returned
+the same rows with every validation rule passing and no tokens spent.
+
+**Verified by running, not by asserting.** A run with a third of its prices
+missing is marked failed and held back from delivery, reaching only a target that
+opted into provisional rows. Every control on every screen is reachable at five
+viewport sizes, checked in a real browser.
+
+**Never exercised, and you should know which parts.** The repair loop has never
+fired on an actual site change: it is covered offline against a scripted agent,
+and no selector has broken in the wild yet. The scheduler has never run a cron
+cycle outside tests. No delivery has been sent to a real endpoint. A build has
+never run on an API key rather than the credentials the Agent SDK finds for
+itself.
+
+So the deterministic half — build, run, validate, hold — has done real work. The
+self-healing half is implemented and tested, and unproven.
+
+**Unfinished pieces are named rather than hidden.** Two screens return an honest
+"not built" page. Re-login needs a browser a person can see, so it does not work
+on a headless host. There is no cron parser, so the schedule column shows the
+expression rather than a countdown. And the anti-bot marker table is labelled
+unmeasured in its own module, because it has never been tested against a corpus
+of real challenge pages; only its blocked/not-blocked verdict is load-bearing.
