@@ -58,8 +58,59 @@ GROUPS: dict[str, tuple[str, ...]] = {
 SECRETISH: frozenset[str] = frozenset({"anthropic_api_key", "captcha_key"})
 
 
+def _model_choices() -> list[tuple[str, str]]:
+    """The models this project can actually run, priced.
+
+    Derived from `agents.cost.PRICES` rather than written out again. A model
+    missing from that table raises `UnknownModelError` when usage is recorded,
+    which would break budget tracking, so offering one here would be offering a
+    choice that breaks the thing the budget guard depends on. The price is in the
+    label because it is the reason anyone picks one model over another.
+    """
+    from smartscraper.agents.cost import PRICES
+
+    out = []
+    for name, price in sorted(PRICES.items(), key=lambda kv: -kv[1].input):
+        short = name.removeprefix("claude-")
+        out.append((name, f"{short}  ·  ${price.input:g} in / ${price.output:g} out per Mtok"))
+    return out
+
+
+def _engine_choices() -> list[tuple[str, str]]:
+    from smartscraper.dsl.models import Engine
+
+    notes = {
+        "auto": "start cheap, climb only when blocked",
+        "http": "no browser; fastest, and beats a headless fingerprint on some sites",
+        "patchright": "chromium with the automation tells patched out",
+        "playwright": "plain chromium; easiest to detect",
+        "camoufox": "firefox built to spoof a fingerprint",
+    }
+    return [(e.value, f"{e.value}  ·  {notes.get(e.value, '')}") for e in Engine]
+
+
+#: Settings with a knowable set of valid values. Anything here renders as a
+#: select, and a value outside the set is refused on save rather than failing
+#: later at the point of use.
+CHOICES: dict[str, list[tuple[str, str]]] = {
+    "builder_model": _model_choices(),
+    "repair_model": _model_choices(),
+    "fallback_model": _model_choices(),
+    "default_engine": _engine_choices(),
+    "agent_effort": [
+        ("low", "low  ·  cheapest, for simple pages"),
+        ("medium", "medium"),
+        ("high", "high  ·  the default"),
+        ("xhigh", "xhigh  ·  best for agentic work"),
+        ("max", "max  ·  when correctness beats cost"),
+    ],
+}
+
+
 def field_type(name: str) -> str:
     """What kind of control the form should render."""
+    if name in CHOICES:
+        return "choice"
     annotation = str(Settings.model_fields[name].annotation)
     if "bool" in annotation:
         return "bool"
@@ -82,6 +133,8 @@ def coerce(name: str, raw: str) -> Any:
     """
     raw = (raw or "").strip()
     kind = field_type(name)
+    if kind == "choice":
+        return raw or None
     if kind == "bool":
         return raw.lower() in ("1", "true", "on", "yes")
     if raw == "":
@@ -119,6 +172,11 @@ async def save(
         if key not in EDITABLE:
             rejected.append(f"{key} is not editable here")
             continue
+        if key in CHOICES and value is not None:
+            allowed = [v for v, _ in CHOICES[key]]
+            if value not in allowed:
+                rejected.append(f"{key}: {value!r} is not one of {', '.join(allowed)}")
+                continue
         proposed[key] = value
 
     merged = {**candidate, **{k: v for k, v in proposed.items() if v is not None}}
@@ -193,5 +251,6 @@ def current_view() -> list[dict[str, Any]]:
                 "help": describe(name),
                 "overridden": name in overrides,
                 "secret": name in SECRETISH,
+                "choices": CHOICES.get(name, []),
             })
     return out

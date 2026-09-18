@@ -45,7 +45,16 @@
               {{ f.name }}
               {%- if f.overridden %} {{ ui.chip('overridden', 'accent') }}{% endif %}
             </label>
-            {%- if f.type == 'bool' %}
+            {%- if f.type == 'choice' %}
+              <select class="input" id="set-{{ f.name }}" name="{{ f.name }}">
+                {%- for value, label in f.choices %}
+                <option value="{{ value }}" {% if value == f.value %}selected{% endif %}>{{ label }}</option>
+                {%- endfor %}
+                {%- if f.value and f.value not in f.choices|map(attribute=0)|list %}
+                <option value="{{ f.value }}" selected>{{ f.value }} · not in the price table</option>
+                {%- endif %}
+              </select>
+            {%- elif f.type == 'bool' %}
               <label class="row" style="gap:8px;align-items:center;cursor:pointer">
                 <input type="checkbox" id="set-{{ f.name }}" name="{{ f.name }}" {% if f.value %}checked{% endif %}>
                 <span class="t-mono t-text-2" style="font-size:11.5px">{{ 'on' if f.value else 'off' }}</span>

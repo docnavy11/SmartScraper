@@ -199,3 +199,62 @@ def test_a_full_form_post_can_still_switch_a_flag_off(client):
     )
 
     assert get_settings().stop_at_budget is False
+
+
+# ------------------------------------------------------------------ choices
+def test_the_model_choices_are_exactly_what_can_be_priced():
+    """A model missing from the price table raises when usage is recorded, which
+    breaks the budget guard. Offering one would offer a choice that breaks the
+    thing the budget depends on."""
+    from smartscraper.agents.cost import PRICES
+    from smartscraper.settings_store import CHOICES
+
+    for field in ("builder_model", "repair_model", "fallback_model"):
+        assert {v for v, _ in CHOICES[field]} == set(PRICES)
+
+
+def test_the_engine_choices_are_exactly_the_dsl_engines():
+    from smartscraper.dsl.models import Engine
+    from smartscraper.settings_store import CHOICES
+
+    assert {v for v, _ in CHOICES["default_engine"]} == {e.value for e in Engine}
+
+
+def test_every_offered_model_can_actually_be_priced():
+    from smartscraper.agents.cost import price_for
+    from smartscraper.settings_store import CHOICES
+
+    for value, _ in CHOICES["builder_model"]:
+        assert price_for(value).input > 0
+
+
+async def test_a_model_outside_the_price_table_is_refused(session):
+    applied, rejected = await settings_store.save(session, {"builder_model": "claude-made-up-9"})
+
+    assert applied == {}
+    assert any("claude-made-up-9" in r for r in rejected)
+    assert get_settings().builder_model == "claude-opus-5"
+
+
+async def test_a_typo_in_an_effort_level_is_refused(session):
+    applied, rejected = await settings_store.save(session, {"agent_effort": "hihg"})
+
+    assert applied == {}
+    assert any("agent_effort" in r for r in rejected)
+
+
+async def test_a_real_model_change_is_accepted(session):
+    applied, rejected = await settings_store.save(session, {"fallback_model": "claude-haiku-4-5"})
+
+    assert rejected == []
+    assert get_settings().fallback_model == "claude-haiku-4-5"
+
+
+def test_the_models_render_as_a_select_not_a_text_box(client):
+    body = client.get("/settings").text
+
+    assert 'name="builder_model"' in body
+    assert "<select" in body
+    # the price is the reason anyone picks one over another, so it is on the option
+    assert "per Mtok" in body
+    assert '<input class="input" id="set-builder_model"' not in body
