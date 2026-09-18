@@ -23,6 +23,11 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("scraper")
     r.add_argument("--version", type=int, default=None)
 
+    imp = sub.add_parser("import", help="register a YAML script as a scraper")
+    imp.add_argument("path")
+    imp.add_argument("--name", default=None, help="defaults to a slug of the target URL")
+    imp.add_argument("--goal", default="", help="what it is for, shown in the UI")
+
     m = sub.add_parser("mcp", help="MCP server on its own")
     m.add_argument("--stdio", action="store_true")
 
@@ -79,6 +84,11 @@ def main(argv: list[str] | None = None) -> int:
 
         return worker_main([])
 
+    if a.cmd == "import":
+        import asyncio
+
+        return asyncio.run(_import_one(a.path, a.name, a.goal))
+
     if a.cmd == "run":
         import asyncio
 
@@ -95,6 +105,45 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"'{a.cmd}' is not wired up yet", file=sys.stderr)
     return 2
+
+
+async def _import_one(path: str, name: str | None, goal: str) -> int:
+    """Register a script file so `run` can find it."""
+    from pathlib import Path
+
+    from smartscraper.db.session import get_session
+    from smartscraper.importer import ImportRefused, import_script
+
+    source = Path(path)
+    if not source.exists():
+        print(f"no such file: {path}", file=sys.stderr)
+        return 2
+
+    try:
+        async with get_session() as s:
+            # The file's own name is what a person means. Falling back to a slug
+            # of the URL produced names like
+            # `https-books-toscrape-com-catalogue-category-books-mystery-3-index-html`.
+            result = await import_script(
+                s, source.read_text(encoding="utf-8"), name=name or source.stem, goal=goal
+            )
+    except ImportRefused as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    except Exception as exc:
+        from sqlalchemy.exc import OperationalError
+
+        if isinstance(exc, OperationalError):
+            print("the database has no schema yet; run `smartscraper init-db`", file=sys.stderr)
+            return 4
+        raise
+
+    print(f"imported {result.name} (v{result.version}) -> {result.path}")
+    if result.has_custom_python:
+        print("  warning: it contains a custom_python step, which runs unsandboxed",
+              file=sys.stderr)
+    print(f"  run it with: smartscraper run {result.name}")
+    return 0
 
 
 async def _run_one(name: str, version: int | None) -> int:

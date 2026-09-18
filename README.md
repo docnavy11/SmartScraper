@@ -53,8 +53,8 @@ back from delivery rather than shipped.
 - **An MCP server**, so any agent can list scrapers, trigger runs and read
   results, with freshness on the answer so a consumer can tell provisional data
   from clean data.
-- **A web UI** of 23 screens, dense and keyboard-friendly, built to be read at a
-  glance rather than admired.
+- **A web UI** of 21 working screens out of 23 designed, dense and built to be
+  read at a glance rather than admired. The other two say what is missing.
 
 ## Running it
 
@@ -78,8 +78,9 @@ expected.
 scraped and says so on its own front page. Copy it into `scrapers/` and run it:
 
 ```bash
-cp examples/books.yaml scrapers/books-example.yaml
-smartscraper init-db && smartscraper run books-example
+smartscraper init-db
+smartscraper import examples/books.yaml
+smartscraper run books
 # run #1  passed  32 rows  http
 #   32 rows, 10 of 10 rules passed
 ```
@@ -116,9 +117,9 @@ challenge pages.
 
 ## Status
 
-Built in one sitting and used in anger since. The test suite is comprehensive and
-green, and the parts that matter most were verified by running them rather than
-by asserting them: a scraper built for a site that refuses headless Chromium, a
+Young. Built quickly, then hardened by using it. The test suite is green, and the
+parts that matter most were verified by running them rather than by asserting
+them: a scraper built for a site that refuses headless Chromium, a
 run with a third of its prices missing correctly held back from delivery, and
 every control on every screen reachable at five viewport sizes.
 
