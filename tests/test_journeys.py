@@ -266,7 +266,7 @@ def test_run_now_hands_the_run_to_the_scheduler(client, monkeypatch):
 def test_a_blocked_build_climbs_the_engine_ladder(client, monkeypatch):
     """A site that refuses one engine may not refuse the next one up.
 
-    a retailer returned HTTP 403 and a bot-block page to headless Chromium. The
+    A retail site returned HTTP 403 and a bot-block page to headless Chromium. The
     build tried one engine and stopped, so a protected site could never be built
     at all.
     """
@@ -309,7 +309,7 @@ def test_a_blocked_build_climbs_the_engine_ladder(client, monkeypatch):
     )
 
     assert result.ok, result.error
-    # http leads: a-retail-site.example refused headless Chromium with a 403 while plain
+    # http leads: a retail site refused headless Chromium with a 403 while plain
     # curl got 200 from the same IP, so the cheapest rung is also the one that
     # works on exactly the sites that block a browser.
     assert rungs == ["http", "patchright"], rungs

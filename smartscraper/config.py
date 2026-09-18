@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     repair_model: str = "claude-opus-5"
     fallback_model: str = "claude-sonnet-5"
     agent_effort: str = "high"
-    # 40 was not enough for a real category page: on a-retail-site.example the agent found
+    # 40 was not enough for a real category page: on one retail site the agent found
     # the listing, pinned the card container and the name link, then ran out mid-way
     # through the price selector. It was making progress, not looping.
     max_builder_turns: int = 80

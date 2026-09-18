@@ -10,3 +10,12 @@ data/
 .ruff_cache/
 .coverage
 htmlcov/
+
+# --- what stays on this machine ---
+# Working notes, the engineering log, and the scrapers you actually run. The
+# repo ships the tool; what you point it at is yours.
+local/
+
+# Scrapers are user data. `scrapers/` is kept, its contents are not.
+scrapers/*
+!scrapers/.gitkeep

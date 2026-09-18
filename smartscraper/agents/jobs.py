@@ -60,7 +60,7 @@ BROWSER_RUNGS = frozenset({"playwright", "patchright", "camoufox"})
 
 # Ordered cheapest first, the same shape as the runner's ladder in PLAN.md.
 #
-# `http` leads for a measured reason, not a guess. a retailer served this machine
+# `http` leads for a measured reason, not a guess. A large retailer served this host
 # HTTP 403 and a bot-block page to headless Chromium, while plain curl with a
 # browser User-Agent got 200 and 914 KB of product HTML from the same IP in the
 # same minute. What was refused was the browser's fingerprint, so starting with

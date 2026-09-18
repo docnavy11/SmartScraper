@@ -21,7 +21,7 @@ import pytest
 
 from smartscraper.agents.gateway import usage_from_result
 
-# data/runs/build-a retailer-dryers-final/agent.jsonl
+# copied from a build transcript under data/runs/
 REAL = {
     "claude-haiku-4-5-20251001": {
         "inputTokens": 9406, "outputTokens": 16, "cacheReadInputTokens": 0,
