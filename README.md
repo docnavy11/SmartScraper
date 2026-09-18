@@ -10,6 +10,10 @@ come back quietly wrong because a selector now matches the wrong column. So a ru
 is judged on its output, not on whether it threw, and a run that fails is held
 back from delivery rather than shipped.
 
+<p align="center">
+  <img src="docs/screenshots/overview.png" width="850" alt="Overview: scraper health, live activity, next scheduled runs">
+</p>
+
 ## How it works
 
 ```
@@ -70,6 +74,39 @@ smartscraper worker           # in another shell, for schedules
 `smartscraper run <name>` executes one scraper in the foreground and prints the
 verdict, naming any rule that failed with what was measured and what was
 expected.
+
+## Screens
+
+<table>
+<tr>
+<td width="50%">
+
+**Scrapers** — status, engine, schedule, spend, at a glance
+<img src="docs/screenshots/scrapers.png" width="420">
+
+</td>
+<td width="50%">
+
+**Run detail** — the log and the validation rules side by side
+<img src="docs/screenshots/run-detail.png" width="420">
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Script editor** — the YAML, a selector probe against the live page, and the step reference
+<img src="docs/screenshots/script-editor.png" width="420">
+
+</td>
+<td width="50%">
+
+**New scraper** — a URL and a sentence in, a running build out
+<img src="docs/screenshots/new-scraper.png" width="420">
+
+</td>
+</tr>
+</table>
 
 ## An example to read
 
