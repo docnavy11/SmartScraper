@@ -24,6 +24,7 @@ What was read out of the installed package rather than guessed:
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -99,40 +100,98 @@ def contains_custom_python(value: Any) -> bool:
     return False
 
 
+log = logging.getLogger(__name__)
+
+
 def usage_from_result(result: ResultMessage, model: str) -> Usage:
     """Fold a ResultMessage into our Usage record.
 
-    `model_usage` (the CLI's camelCase `modelUsage`) is preferred because it is
-    broken down per model and carries the canonical model id. `usage` is the
-    Messages API shape and is used when the former is absent.
+    Two things here were wrong and both fed the budget guard.
+
+    The harness runs more than one model. A build asking for Opus also showed
+    ~9k Haiku input tokens from the CLI's own internal work. The old code summed
+    tokens across every model and priced the total at a single rate, and labelled
+    the row with whichever model had the most tokens. On a short build Haiku's
+    input count exceeded Opus's, so the row said Haiku and 1.4M Opus cache reads
+    were billed at Haiku's rate. One build recorded $0.0998 against a real
+    $1.979.
+
+    So: each model is priced on its own slice, `model` is the model that was
+    asked for, and the harness's own `costUSD` wins when it is there, because it
+    knows the real rates and our table is a copy that can go stale.
     """
     usage = Usage(model=model, turns=result.num_turns)
     per_model = result.model_usage or {}
+
     if per_model:
-        best_tokens = -1
+        harness_total = 0.0
+        saw_harness_cost = False
         for key, entry in per_model.items():
-            usage.input_tokens += int(entry.get("inputTokens", 0) or 0)
-            usage.output_tokens += int(entry.get("outputTokens", 0) or 0)
-            usage.cache_read_tokens += int(entry.get("cacheReadInputTokens", 0) or 0)
-            usage.cache_write_tokens += int(entry.get("cacheCreationInputTokens", 0) or 0)
-            tokens = int(entry.get("inputTokens", 0) or 0) + int(entry.get("outputTokens", 0) or 0)
-            if tokens > best_tokens:
-                best_tokens = tokens
-                usage.model = str(entry.get("canonicalModel") or key or model)
+            canonical = str(entry.get("canonicalModel") or key)
+            tokens_in = int(entry.get("inputTokens", 0) or 0)
+            tokens_out = int(entry.get("outputTokens", 0) or 0)
+            cache_read = int(entry.get("cacheReadInputTokens", 0) or 0)
+            cache_write = int(entry.get("cacheCreationInputTokens", 0) or 0)
+
+            usage.input_tokens += tokens_in
+            usage.output_tokens += tokens_out
+            usage.cache_read_tokens += cache_read
+            usage.cache_write_tokens += cache_write
+
+            slice_cost = entry.get("costUSD")
+            if slice_cost is None:
+                slice_cost = _price_slice(canonical, tokens_in, tokens_out, cache_read, cache_write)
+            else:
+                saw_harness_cost = True
+            harness_total += float(slice_cost or 0.0)
+
+            usage.by_model[canonical] = {
+                "input_tokens": tokens_in,
+                "output_tokens": tokens_out,
+                "cache_read_tokens": cache_read,
+                "cache_write_tokens": cache_write,
+                "cost_usd": round(float(slice_cost or 0.0), 6),
+            }
+
+        usage.cost_usd = round(harness_total, 6)
+        usage.cost_source = "harness" if saw_harness_cost else "computed"
     elif result.usage:
         raw = result.usage
         usage.input_tokens = int(raw.get("input_tokens", 0) or 0)
         usage.output_tokens = int(raw.get("output_tokens", 0) or 0)
         usage.cache_read_tokens = int(raw.get("cache_read_input_tokens", 0) or 0)
         usage.cache_write_tokens = int(raw.get("cache_creation_input_tokens", 0) or 0)
+        try:
+            usage.cost_usd = cost_of(usage)
+        except UnknownModelError:
+            usage.cost_usd = float(result.total_cost_usd or 0.0)
+            usage.cost_source = "harness"
 
-    try:
-        usage.cost_usd = cost_of(usage)
-    except UnknownModelError:
-        # Our table does not know this model id. Fall back to what the CLI
-        # charged rather than silently recording zero.
-        usage.cost_usd = float(result.total_cost_usd or 0.0)
+    # The harness's own total is the bill. Trust it over anything we derived, and
+    # say so when they disagree: that is how a stale price table shows itself.
+    reported = float(result.total_cost_usd or 0.0)
+    if reported > 0:
+        if usage.cost_usd and abs(usage.cost_usd - reported) > max(0.01, reported * 0.05):
+            log.warning(
+                "cost disagreement: computed $%.4f, harness reported $%.4f (%s). "
+                "Check smartscraper.agents.cost.PRICES.",
+                usage.cost_usd, reported, ", ".join(usage.by_model) or model,
+            )
+        usage.cost_usd = round(reported, 6)
+        usage.cost_source = "harness"
     return usage
+
+
+def _price_slice(model: str, tokens_in: int, tokens_out: int, cache_read: int, cache_write: int) -> float:
+    """Our own price for one model's share, when the harness did not give one."""
+    try:
+        return cost_of(Usage(
+            model=model, input_tokens=tokens_in, output_tokens=tokens_out,
+            cache_read_tokens=cache_read, cache_write_tokens=cache_write,
+        ))
+    except UnknownModelError:
+        log.warning("no price for %r; that slice is recorded at zero", model)
+        return 0.0
 
 
 class AgentSdkGateway:

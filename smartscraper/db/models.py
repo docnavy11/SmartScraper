@@ -21,6 +21,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -217,6 +218,15 @@ class LlmUsage(Base, TS):
     cache_write_tokens: Mapped[int] = mapped_column(Integer, default=0)
     cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
     turns: Mapped[int] = mapped_column(Integer, default=0)
+    #: Per-model breakdown as the harness reported it. `model` above is what was
+    #: asked for; a harness may run others for its own internal work.
+    # server_default as well as default: SQLite cannot add a NOT NULL column
+    # without one, so the migration carries it and the model must agree or
+    # autogenerate reports a permanent diff.
+    by_model: Mapped[dict] = mapped_column(JSON, default=dict, server_default=text("'{}'"))
+    cost_source: Mapped[str] = mapped_column(
+        String(16), default="computed", server_default=text("'computed'")
+    )
 
 
 # --------------------------------------------------------------------------- infra

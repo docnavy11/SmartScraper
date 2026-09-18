@@ -240,8 +240,12 @@ def test_usage_is_read_from_the_camelcase_model_usage_block():
     assert usage.input_tokens == 120_000
     assert usage.cache_read_tokens == 900_000
     assert usage.turns == 4
-    # Priced from our own table, not from the CLI's costUSD.
-    assert usage.cost_usd == pytest.approx((120_000 * 5 + 6_000 * 25 + 900_000 * 0.5) / 1_000_000)
+    # The harness's own costUSD wins. Our table is a copy of published prices and
+    # can go stale; the harness knows what it actually charged. Pricing from our
+    # table instead is what let a $1.98 build record as $0.10.
+    assert usage.cost_usd == pytest.approx(1.0)
+    assert usage.cost_source == "harness"
+    assert usage.by_model["claude-opus-5"]["cost_usd"] == pytest.approx(1.0)
 
 
 def test_usage_falls_back_to_the_snake_case_messages_api_block():

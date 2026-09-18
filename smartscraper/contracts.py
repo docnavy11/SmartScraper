@@ -144,6 +144,15 @@ class ValidatorReport:
 
 @dataclass(slots=True)
 class Usage:
+    """What one agent call consumed.
+
+    `model` is the model that was asked for. A harness may also run other models
+    of its own for internal work, so `by_model` carries the real breakdown and
+    `cost_usd` is the sum across all of them. Summing tokens across models and
+    pricing them at one rate understates or overstates the bill, and this is what
+    the budget guard reads.
+    """
+
     model: str
     input_tokens: int = 0
     output_tokens: int = 0
@@ -151,6 +160,8 @@ class Usage:
     cache_write_tokens: int = 0
     turns: int = 0
     cost_usd: float = 0.0
+    by_model: dict[str, dict[str, float]] = field(default_factory=dict)
+    cost_source: str = "computed"      # computed | harness
 
 
 @dataclass(slots=True)

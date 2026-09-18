@@ -98,6 +98,8 @@ def usage_row(
         run_id=run_id,
         agent=agent,
         model=usage.model,
+        by_model=dict(getattr(usage, "by_model", {}) or {}),
+        cost_source=getattr(usage, "cost_source", "computed"),
         input_tokens=usage.input_tokens,
         output_tokens=usage.output_tokens,
         cache_read_tokens=usage.cache_read_tokens,
