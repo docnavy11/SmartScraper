@@ -2,7 +2,20 @@
 name = "smartscraper"
 version = "0.1.0"
 description = "AI builds the scraper, a deterministic runner executes it, the AI is called back only when it breaks."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
+keywords = ["scraping", "agent", "llm", "playwright", "mcp", "automation"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Web Environment",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Internet :: WWW/HTTP :: Indexing/Search",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
 dependencies = [
   "pydantic>=2.13,<3",
   "pydantic-settings>=2.7",
@@ -35,6 +48,11 @@ dependencies = [
 export = ["duckdb>=1.5", "pyarrow>=18"]
 s3 = ["boto3>=1.43"]
 dev = ["pytest>=8.3", "pytest-asyncio>=0.25", "pytest-cov>=6.0", "ruff>=0.9", "mypy>=1.14"]
+
+[project.urls]
+Homepage = "https://github.com/docnavy11/SmartScraper"
+Source = "https://github.com/docnavy11/SmartScraper"
+Issues = "https://github.com/docnavy11/SmartScraper/issues"
 
 [project.scripts]
 smartscraper = "smartscraper.cli:main"

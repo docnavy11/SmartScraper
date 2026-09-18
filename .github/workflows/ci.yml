@@ -1,0 +1,38 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --extra dev --extra export
+
+      # The layout tests drive a real browser at five viewport sizes. They skip
+      # when Chromium is missing rather than failing, but a skipped check is not
+      # a passing one, so CI installs it.
+      - name: Install Chromium
+        run: uv run python -m playwright install --with-deps chromium
+
+      - name: Lint
+        run: uv run ruff check smartscraper tests
+
+      - name: Test
+        run: uv run pytest -q
+        env:
+          # The suite must not inherit a developer's deployment. conftest.py
+          # already forces these, and setting them here says so out loud.
+          SS_HOST: 127.0.0.1
+          SS_WEB_PASSWORD: ""
+          SS_MCP_BEARER_TOKEN: ""
