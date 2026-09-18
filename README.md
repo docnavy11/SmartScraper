@@ -71,6 +71,28 @@ smartscraper worker           # in another shell, for schedules
 verdict, naming any rule that failed with what was measured and what was
 expected.
 
+## An example to read
+
+`examples/books.yaml` was written by the builder, not by hand, against
+[books.toscrape.com](https://books.toscrape.com/), a site that exists to be
+scraped and says so on its own front page. Copy it into `scrapers/` and run it:
+
+```bash
+cp examples/books.yaml scrapers/books-example.yaml
+smartscraper init-db && smartscraper run books-example
+# run #1  passed  32 rows  http
+#   32 rows, 10 of 10 rules passed
+```
+
+It is worth reading for the choices the agent made on its own. The star rating
+is encoded in a CSS class rather than any text, so it reads the class attribute
+and pulls the word out with a regex. Prices are parsed to numbers. Most fields
+carry a second and third selector, so one markup change degrades instead of
+breaking. There is an assertion before extraction, because fewer than twelve
+cards means the page is not the one it was built against. And the validation
+thresholds come from what was measured during the build rather than from
+defaults.
+
 ## Two things to know before pointing it at a site
 
 **It spends money when it thinks.** A build is one agent session and costs real

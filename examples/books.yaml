@@ -1,0 +1,147 @@
+# An example scraper, built by the builder agent and not hand-written.
+#
+# Target: books.toscrape.com, which exists to be scraped. It says so on its own
+# front page, and it serves no robots.txt. Every other site is your call.
+#
+# Worth reading for what the agent chose on its own:
+#
+#   star_rating   the rating is encoded in a CSS class, not in any text, so it
+#                 reads the class attribute and pulls the word out with a regex
+#   price_gbp     parsed to a number rather than left as "£53.98"
+#   fallbacks     most fields carry a second and third selector, so one markup
+#                 change degrades instead of breaking
+#   assert        a guard before extraction: fewer than 12 cards means the page
+#                 is not what it was built against, and that is worth failing on
+#   validation    thresholds derived from what was measured during the build,
+#                 not from defaults. 30 to 96 rows, no nulls, unique urls.
+#
+# Run it with:   smartscraper run books-example
+# It returns 32 rows across 2 pages and passes 10 of 10 rules.
+version: 1
+schema_version: 1
+engine: auto
+rotation: sticky_per_run
+escalation:
+- http
+- patchright
+- patchright+proxy
+rate_limit:
+  min_delay_s: 1.0
+  max_delay_s: 3.0
+  max_pages_per_run: 10
+respect_robots: true
+steps:
+- op: goto
+  url: https://books.toscrape.com/catalogue/category/books/mystery_3/index.html
+  wait_until: domcontentloaded
+  timeout_ms: 30000
+- op: wait_for
+  selector: article.product_pod
+  state: attached
+  timeout_ms: 15000
+- op: assert
+  selector: article.product_pod
+  min_count: 12
+  message: book grid missing or shorter than the 12-per-page minimum observed
+- op: extract_list
+  selector: article.product_pod
+  as: books
+  fields:
+    title:
+      selector: h3 a
+      attr: title
+      parse: text
+      absolute: false
+      required: true
+      fallback_selectors:
+      - a[title]
+      - div.image_container img
+    price_gbp:
+      selector: p.price_color
+      attr: text
+      parse: money
+      absolute: false
+      required: true
+      fallback_selectors: []
+    star_rating:
+      selector: p.star-rating
+      attr: class
+      parse: text
+      absolute: false
+      required: true
+      regex: star-rating\s+(One|Two|Three|Four|Five)
+      fallback_selectors: []
+    availability:
+      selector: p.availability
+      attr: text
+      parse: text
+      absolute: false
+      required: true
+      fallback_selectors:
+      - p.instock.availability
+    url:
+      selector: h3 a
+      attr: href
+      parse: text
+      absolute: true
+      required: true
+      fallback_selectors:
+      - div.image_container a
+  min_items: 12
+  fallback_selectors:
+  - ol.row li article.product_pod
+- op: paginate
+  next: li.next a
+  max_pages: 5
+  var: page
+  stop_when_empty: true
+- op: emit
+  from: books
+output_schema:
+  type: object
+  additionalProperties: false
+  properties:
+    title:
+      type: string
+      description: Full book title from the anchor title attribute
+    price_gbp:
+      type: number
+      description: Price in pounds sterling
+    star_rating:
+      type: string
+      enum:
+      - One
+      - Two
+      - Three
+      - Four
+      - Five
+      description: Star rating word taken from the star-rating class
+    availability:
+      type: string
+      description: Stock status text, e.g. 'In stock'
+    url:
+      type: string
+      description: Absolute URL of the book detail page
+  required:
+  - title
+  - price_gbp
+  - star_rating
+  - availability
+  - url
+validation:
+  min_rows: 30
+  max_rows: 96
+  max_null_rate:
+    title: 0.0
+    price_gbp: 0.0
+    star_rating: 0.0
+    availability: 0.0
+    url: 0.0
+  unique:
+  - url
+  required_fields:
+  - title
+  - price_gbp
+  - star_rating
+  - availability
+  - url
